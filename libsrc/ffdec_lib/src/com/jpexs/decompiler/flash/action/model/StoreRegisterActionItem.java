@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2023 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -16,7 +16,9 @@
  */
 package com.jpexs.decompiler.flash.action.model;
 
+import com.jpexs.decompiler.flash.IdentifiersDeobfuscation;
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
+import com.jpexs.decompiler.flash.action.parser.script.ActionSourceGenerator;
 import com.jpexs.decompiler.flash.action.swf4.RegisterNumber;
 import com.jpexs.decompiler.flash.action.swf5.ActionStoreRegister;
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
@@ -96,7 +98,7 @@ public class StoreRegisterActionItem extends ActionItem implements SetTypeAction
                 srcData.declaredType = DottedChain.ALL;
                 writer.append("var ");
             }
-            writer.append(register.translate());
+            writer.append(IdentifiersDeobfuscation.printIdentifier(false, register.translate()));
 
             if (compoundOperator != null) {
                 writer.append(" ");
@@ -124,7 +126,9 @@ public class StoreRegisterActionItem extends ActionItem implements SetTypeAction
 
     @Override
     public List<GraphSourceItem> toSource(SourceGeneratorLocalData localData, SourceGenerator generator) throws CompilationException {
-        return toSourceMerge(localData, generator, value, new ActionStoreRegister(register.number));
+        ActionSourceGenerator asGenerator = (ActionSourceGenerator) generator;
+        String charset = asGenerator.getCharset();  
+        return toSourceMerge(localData, generator, value, new ActionStoreRegister(register.number, charset));
     }
 
     @Override
@@ -132,6 +136,8 @@ public class StoreRegisterActionItem extends ActionItem implements SetTypeAction
         return true;
     }
 
+    /*
+    NOT COMPILE TIME! This causes problems in simplifyExpressions, etc.
     @Override
     public boolean isCompileTime(Set<GraphTargetItem> dependencies) {
         if (dependencies.contains(value)) {
@@ -140,6 +146,7 @@ public class StoreRegisterActionItem extends ActionItem implements SetTypeAction
         dependencies.add(value);
         return value.isCompileTime(dependencies);
     }
+    */
 
     @Override
     public Object getResult() {

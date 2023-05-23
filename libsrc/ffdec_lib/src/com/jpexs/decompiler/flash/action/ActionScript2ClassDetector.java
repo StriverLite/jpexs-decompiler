@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2023 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -16,6 +16,7 @@
  */
 package com.jpexs.decompiler.flash.action;
 
+import com.jpexs.decompiler.flash.IdentifiersDeobfuscation;
 import com.jpexs.decompiler.flash.action.model.CallFunctionActionItem;
 import com.jpexs.decompiler.flash.action.model.CallMethodActionItem;
 import com.jpexs.decompiler.flash.action.model.DirectValueActionItem;
@@ -26,25 +27,35 @@ import com.jpexs.decompiler.flash.action.model.GetVariableActionItem;
 import com.jpexs.decompiler.flash.action.model.ImplementsOpActionItem;
 import com.jpexs.decompiler.flash.action.model.NewMethodActionItem;
 import com.jpexs.decompiler.flash.action.model.NewObjectActionItem;
+import com.jpexs.decompiler.flash.action.model.ReturnActionItem;
 import com.jpexs.decompiler.flash.action.model.SetMemberActionItem;
 import com.jpexs.decompiler.flash.action.model.SetVariableActionItem;
 import com.jpexs.decompiler.flash.action.model.StoreRegisterActionItem;
 import com.jpexs.decompiler.flash.action.model.TemporaryRegister;
+import com.jpexs.decompiler.flash.action.model.TemporaryRegisterMark;
 import com.jpexs.decompiler.flash.action.model.clauses.ClassActionItem;
 import com.jpexs.decompiler.flash.action.model.clauses.InterfaceActionItem;
 import com.jpexs.decompiler.flash.action.swf4.RegisterNumber;
 import com.jpexs.decompiler.flash.ecma.Null;
 import com.jpexs.decompiler.flash.helpers.collections.MyEntry;
 import com.jpexs.decompiler.graph.GraphTargetItem;
+import com.jpexs.decompiler.graph.model.CommaExpressionItem;
 import com.jpexs.decompiler.graph.model.IfItem;
 import com.jpexs.decompiler.graph.model.NotItem;
 import com.jpexs.decompiler.graph.model.PopItem;
 import com.jpexs.decompiler.graph.model.PushItem;
+import com.jpexs.decompiler.graph.model.ScriptEndItem;
+import com.jpexs.decompiler.graph.model.TernarOpItem;
 import com.jpexs.helpers.Reference;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  *
@@ -268,67 +279,136 @@ public class ActionScript2ClassDetector {
         return mnDv.getAsString();
     }
 
-    private boolean checkClassContent(List<GraphTargetItem> parts, int partsPos, int commandsStartPos, int commandsEndPos, List<GraphTargetItem> commands, List<String> classNamePath, String scriptPath) {
+    private boolean checkClassContent(List<GraphTargetItem> parts, HashMap<String, GraphTargetItem> variables, int partsPos, int commandsStartPos, int commandsEndPos, List<GraphTargetItem> commands, List<String> classNamePath, String scriptPath) {
 
         try {
-            GraphTargetItem item = parts.get(partsPos);
+
             GraphTargetItem extendsOp = null;
             List<GraphTargetItem> implementsOp = new ArrayList<>();
-            if (item instanceof ExtendsActionItem) {
-                ExtendsActionItem et = (ExtendsActionItem) parts.get(partsPos);
-                extendsOp = getWithoutGlobal(et.superclass);
-                partsPos++;
-                item = parts.get(partsPos);
-            }
+            GraphTargetItem item = null;
             int instanceReg = -1;
             int classReg = -1;
             GraphTargetItem classNameTargetPath = null;
             GraphTargetItem constructor = null;
-            if (item instanceof StoreRegisterActionItem) {
-                StoreRegisterActionItem sr = (StoreRegisterActionItem) item;
-                instanceReg = sr.register.number;
-                if (sr.value instanceof GetMemberActionItem) {
-                    GetMemberActionItem gm = (GetMemberActionItem) sr.value;
-                    if (gm.object instanceof TemporaryRegister) {
-                        TemporaryRegister treg = (TemporaryRegister) gm.object;
-                        classReg = treg.getRegId();
-                        if (!"prototype".equals(getAsString(gm.memberName, "memberName"))) {
-                            throw new AssertException("memberName not \"prototype\"");
-                        }
-                        if ((treg.value instanceof SetMemberActionItem) || (treg.value instanceof SetVariableActionItem)) {
-                            List<String> path = getSetMembersPath(treg.value);
-                            if (path == null || path.isEmpty()) {
-                                throw new AssertException("Cannot detect class - tempreg value is not a path");
-                            }
-                            //remove _global if it's there - happens for classes in global package
-                            if ("_global".equals(path.get(0))) {
-                                path.remove(0);
-                            }
-                            if (classNamePath.equals(path)) {
-                                //can start with _global for classes on top level
-                                classNameTargetPath = getWithoutGlobal(setMemberToGetMember(treg.value));
 
-                                //treg.value.value is the value being set - treg.value is setmember ot setvariable
-                                if (!(treg.value.value instanceof StoreRegisterActionItem)) {
-                                    throw new AssertException("Constructor expected to be in storeregister");
+            Pattern regPattern = Pattern.compile("__register([0-9]+)");
+
+            Set<Integer> definedRegisters = new HashSet<>();
+            for (int i = partsPos; i < parts.size(); i++) {
+                item = parts.get(i);
+                if (item instanceof StoreRegisterActionItem) {
+                    StoreRegisterActionItem sr = (StoreRegisterActionItem) item;
+                    definedRegisters.add(sr.register.number);
+                }
+            }
+
+            if (parts.size() > partsPos) {
+                item = parts.get(partsPos);
+
+                if (item instanceof SetMemberActionItem) {
+                    List<String> memPath = getSetMembersPath((SetMemberActionItem) item);
+                    if (memPath != null) {
+                        if (memPath.get(0).equals("_global")) {
+                            memPath.remove(0);
+                        }
+                        if (memPath.equals(classNamePath)) {
+                            if (item.value instanceof StoreRegisterActionItem) {
+                                constructor = item.value.value;
+                                partsPos++;
+                                if (parts.size() > partsPos) {
+                                    item = parts.get(partsPos);
+                                } else {
+                                    item = null;
                                 }
-                                if (!(treg.value.value.value instanceof FunctionActionItem)) {
-                                    throw new AssertException("Constructor expected as functionitem");
+                            }
+
+                        }
+                    }
+                }
+
+                if (item instanceof ExtendsActionItem) {
+                    ExtendsActionItem et = (ExtendsActionItem) parts.get(partsPos);
+                    extendsOp = getWithoutGlobal(et.superclass);
+                    partsPos++;
+                    if (parts.size() > partsPos) {
+                        item = parts.get(partsPos);
+                    } else {
+                        item = null;
+                    }
+                }
+
+                if (item instanceof SetMemberActionItem) {
+                    SetMemberActionItem sm = (SetMemberActionItem) item;
+                    List<String> protoPath = new ArrayList<>(classNamePath);
+                    protoPath.add("prototype");
+                    List<String> smPath = getSetMembersPath(sm);
+                    if (smPath != null) { //null = can start with TempRegister for example
+                        if (smPath.get(0).equals("_global")) {
+                            smPath.remove(0);
+                        }
+                        if (smPath.equals(protoPath)) {
+                            if (sm.value instanceof StoreRegisterActionItem) {
+                                partsPos++;
+                                if (parts.size() > partsPos) {
+                                    item = parts.get(partsPos);
+                                } else {
+                                    item = null;
                                 }
-                                constructor = treg.value.value.value;
+                            }
+                        }
+                    }
+                }
+
+                if (item instanceof StoreRegisterActionItem) {
+                    StoreRegisterActionItem sr = (StoreRegisterActionItem) item;
+                    instanceReg = sr.register.number;
+                    if (sr.value instanceof GetMemberActionItem) {
+                        GetMemberActionItem gm = (GetMemberActionItem) sr.value;
+                        if (gm.object instanceof TemporaryRegister) {
+                            TemporaryRegister treg = (TemporaryRegister) gm.object;
+                            classReg = treg.getRegId();
+                            if (!"prototype".equals(getAsString(gm.memberName, "memberName"))) {
+                                throw new AssertException("memberName not \"prototype\"");
+                            }
+                            if ((treg.value instanceof SetMemberActionItem) || (treg.value instanceof SetVariableActionItem)) {
+                                List<String> path = getSetMembersPath(treg.value);
+                                if (path == null || path.isEmpty()) {
+                                    throw new AssertException("Cannot detect class - tempreg value is not a path");
+                                }
+                                //remove _global if it's there - happens for classes in global package
+                                if ("_global".equals(path.get(0))) {
+                                    path.remove(0);
+                                }
+                                if (classNamePath.equals(path)) {
+                                    //can start with _global for classes on top level
+                                    classNameTargetPath = getWithoutGlobal(setMemberToGetMember(treg.value));
+
+                                    //treg.value.value is the value being set - treg.value is setmember ot setvariable
+                                    if (!(treg.value.value instanceof StoreRegisterActionItem)) {
+                                        throw new AssertException("Constructor expected to be in storeregister");
+                                    }
+                                    if (!(treg.value.value.value instanceof FunctionActionItem)) {
+                                        throw new AssertException("Constructor expected as functionitem");
+                                    }
+                                    constructor = treg.value.value.value;
+                                } else {
+                                    throw new AssertException("temporaryreg value does not match class path");
+                                }
                             } else {
-                                throw new AssertException("temporaryreg value does not match class path");
+                                throw new AssertException("temporaryreg value not setmember/setvariable");
                             }
                         } else {
-                            throw new AssertException("temporaryreg value not setmember/setvariable");
+                            throw new AssertException("Getmember does not have TemporaryRegister as object");
                         }
                     } else {
-                        throw new AssertException("Getmember does not have TemporaryRegister as object");
+                        throw new AssertException("Not Getmember in StoreRegister");
                     }
-                } else {
-                    throw new AssertException("Not Getmember in StoreRegister");
+                    partsPos++;
                 }
-                partsPos++;
+            }
+            classNameTargetPath = new GetVariableActionItem(null, null, new DirectValueActionItem(classNamePath.get(0)));
+            for (int i = 1; i < classNamePath.size(); i++) {
+                classNameTargetPath = new GetMemberActionItem(null, null, classNameTargetPath, new DirectValueActionItem(classNamePath.get(i)));
             }
             List<MyEntry<GraphTargetItem, GraphTargetItem>> traits = new ArrayList<>();
             List<Boolean> traitsStatic = new ArrayList<>();
@@ -428,10 +508,14 @@ public class ActionScript2ClassDetector {
                         if (memPath == null) {
                             throw new AssertException("Invalid pathsource");
                         }
+                        //remove _global if it's there - happens for classes in global package
+                        if (memPath.size() > 0 && "_global".equals(memPath.get(0))) {
+                            memPath.remove(0);
+                        }
                         if (!classNamePath.equals(memPath)) {
                             throw new AssertException("Invalid path of setmember:" + String.join(".", memPath));
                         }
-                        classNameTargetPath = pathSource;
+                        //classNameTargetPath = pathSource;
                         if (!(sm2.value instanceof StoreRegisterActionItem)) {
                             throw new AssertException("Not storeregister");
                         }
@@ -487,9 +571,23 @@ public class ActionScript2ClassDetector {
                             }
                             String getterNameStr = getAsString(((GetMemberActionItem) propertyGetter).memberName, "getter memberName");
                             if (!(getterNameStr.equals("__get__" + propertyNameStr))) {
-                                throw new AssertException("getter does not match property name");
+                                //throw new AssertException("getter does not match property name");
+                                Logger.getLogger(ActionScript2ClassDetector.class.getName()).warning(scriptPath + ": getter " + IdentifiersDeobfuscation.printIdentifier(false, getterNameStr) + " does not match property name " + IdentifiersDeobfuscation.printIdentifier(false, propertyNameStr));
+                                continue;
                             }
-                            //TODO: handle getter HERE                                                                                                       
+
+                            for (MyEntry<GraphTargetItem, GraphTargetItem> trait : traits) {
+                                if (trait.getKey() instanceof DirectValueActionItem) {
+                                    if (((DirectValueActionItem) trait.getKey()).isString()) {
+                                        if (((DirectValueActionItem) trait.getKey()).toString().equals(getterNameStr)) {
+                                            if (trait.getValue() instanceof FunctionActionItem) {
+                                                FunctionActionItem func = (FunctionActionItem) trait.getValue();
+                                                func.isGetter = true;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
 
                         } else if (propertyGetter instanceof FunctionActionItem) {
                             FunctionActionItem getterFunc = (FunctionActionItem) propertyGetter;
@@ -508,9 +606,44 @@ public class ActionScript2ClassDetector {
                             }
                             String setterNameStr = getAsString(((GetMemberActionItem) propertySetter).memberName, "setter memberNAme");
                             if (!(setterNameStr.equals("__set__" + propertyNameStr))) {
-                                throw new AssertException("setter does not match property name");
+                                Logger.getLogger(ActionScript2ClassDetector.class.getName()).warning(scriptPath + ": setter " + IdentifiersDeobfuscation.printIdentifier(false, setterNameStr) + " does not match property name " + IdentifiersDeobfuscation.printIdentifier(false, propertyNameStr));
+                                continue;
+                                //throw new AssertException("setter does not match property name");
                             }
-                            //TODO: handle setter HERE
+
+                            for (MyEntry<GraphTargetItem, GraphTargetItem> trait : traits) {
+                                if (trait.getKey() instanceof DirectValueActionItem) {
+                                    if (((DirectValueActionItem) trait.getKey()).isString()) {
+                                        if (((DirectValueActionItem) trait.getKey()).toString().equals(setterNameStr)) {
+                                            if (trait.getValue() instanceof FunctionActionItem) {
+                                                FunctionActionItem func = (FunctionActionItem) trait.getValue();
+                                                func.isSetter = true;
+
+                                                if (FunctionActionItem.DECOMPILE_GET_SET) {
+                                                    //There is return getter added at the end of every setter, gotta remove it, since it won't compile
+                                                    //as setter must not return a value
+                                                    if (!func.actions.isEmpty()) {
+                                                        int pos = func.actions.size() - 1;
+                                                        if (func.actions.get(pos) instanceof ScriptEndItem) {
+                                                            pos--;
+                                                        }
+                                                        if (pos >= 0 && func.actions.get(pos) instanceof ReturnActionItem) {
+                                                            GraphTargetItem val = func.actions.get(pos);
+                                                            if (val.value instanceof CallMethodActionItem) {
+                                                                if (((CallMethodActionItem) val.value).methodName instanceof DirectValueActionItem) {
+                                                                    if (((CallMethodActionItem) val.value).methodName.toString().startsWith("__get__")) {
+                                                                        func.actions.remove(pos);
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         } else if (propertySetter instanceof FunctionActionItem) {
                             FunctionActionItem setterFunc = (FunctionActionItem) propertySetter;
                             if (!(setterFunc.actions.isEmpty() && setterFunc.functionName.isEmpty() && ((FunctionActionItem) propertySetter).paramNames.isEmpty())) {
@@ -562,6 +695,13 @@ public class ActionScript2ClassDetector {
                     } else {
                         throw new AssertException("unknown pushitem function call " + funName);
                     }
+                } else if (item instanceof DirectValueActionItem) {
+                    //ignore such values
+                    //TODO: maybe somehow display in the class ?
+                } else if (item instanceof ScriptEndItem) {
+                    //ignore
+                } else if (item instanceof TemporaryRegisterMark) {
+                    //ignore
                 } else {
                     throw new AssertException("unknown item - " + item.getClass().getSimpleName());
                 }
@@ -574,7 +714,7 @@ public class ActionScript2ClassDetector {
                 ((FunctionActionItem) constructor).calculatedFunctionName = classBaseName;
                 traits.add(0, new MyEntry<>(classBaseName, constructor));
             } else {
-                throw new AssertException("No constructor found");
+                //throw new AssertException("No constructor found");
             }
 
             ClassActionItem clsItem = new ClassActionItem(classNameTargetPath, extendsOp, implementsOp, traits, traitsStatic);
@@ -598,8 +738,33 @@ public class ActionScript2ClassDetector {
         return false;
     }
 
-    private boolean checkIfVariants(List<GraphTargetItem> commands, int pos, String scriptPath) {
+    //in some weird cases, ifs are detected as ternars, this method expands ternars to ifs
+    private void expandTernars(List<GraphTargetItem> commands) {
+        for (int i = 0; i < commands.size(); i++) {
+            if (commands.get(i) instanceof TernarOpItem) {
+                TernarOpItem ter = (TernarOpItem) commands.get(i);
+                List<GraphTargetItem> onTrue = new ArrayList<>();
+                if (ter.onTrue instanceof CommaExpressionItem) {
+                    CommaExpressionItem ce = (CommaExpressionItem) ter.onTrue;
+                    onTrue = ce.commands;
+                } else {
+                    onTrue.add(ter.onTrue);
+                }
+                List<GraphTargetItem> onFalse = new ArrayList<>();
+                if (ter.onFalse instanceof CommaExpressionItem) {
+                    CommaExpressionItem ce = (CommaExpressionItem) ter.onFalse;
+                    onFalse = ce.commands;
+                } else {
+                    onFalse.add(ter.onFalse);
+                }
+                commands.set(i, new IfItem(null, null, ter.expression, onTrue, onFalse));
+            }
+        }
+    }
 
+    private boolean checkIfVariants(List<GraphTargetItem> commands, HashMap<String, GraphTargetItem> variables, int pos, String scriptPath) {
+
+        expandTernars(commands);
 
         /*
             Variant 1:        
@@ -654,7 +819,13 @@ public class ActionScript2ClassDetector {
                         }
                         List<String> classPath = pathToSearchVariant1;
                         classPath.remove(0); //remove _global
-                        if (this.checkClassContent(ifItem.onTrue, 0, pos, checkPos, commands, classPath, scriptPath)) {
+                        if (ifItem.onTrue.isEmpty()) { //if can have zero offset as the code is larger than bytes limit. TODO: make this check also for variant 2 (?)
+                            if (this.checkClassContent(commands, variables, checkPos + 1, pos, commands.size() - 1, commands, classPath, scriptPath)) {
+                                return true;
+                            } else {
+                                break check_variant1;
+                            }
+                        } else if (this.checkClassContent(ifItem.onTrue, variables, 0, pos, checkPos, commands, classPath, scriptPath)) {
                             return true;
                         } else {
                             break check_variant1;
@@ -721,7 +892,7 @@ public class ActionScript2ClassDetector {
                         }
                     }
                 }
-                if (checkClassContent(parts, checkPos, pos, pos, commands, memPath, scriptPath)) {
+                if (checkClassContent(parts, variables, checkPos, pos, pos, commands, memPath, scriptPath)) {
                     return true;
                 }
             }
@@ -730,9 +901,17 @@ public class ActionScript2ClassDetector {
         return false;
     }
 
-    public void checkClass(List<GraphTargetItem> commands, String scriptPath) {
-        for (int pos = 0; pos < commands.size(); pos++) {
-            checkIfVariants(commands, pos, scriptPath);
+    public void checkClass(List<GraphTargetItem> commands, HashMap<String, GraphTargetItem> variables, String scriptPath) {
+        List<GraphTargetItem> localCommands = new ArrayList<>(commands);
+        boolean changed = false;
+        for (int pos = 0; pos < localCommands.size(); pos++) {
+            if (checkIfVariants(localCommands, variables, pos, scriptPath)) {
+                changed = true;
+            }
+        }
+        if (changed) {
+            commands.clear();
+            commands.addAll(localCommands);
         }
     }
 }

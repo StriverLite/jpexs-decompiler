@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS
+ *  Copyright (C) 2010-2023 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -222,7 +222,9 @@ public class DebugPanel extends JPanel {
         traceLogTextarea.setEditable(false);
         traceLogTextarea.setOpaque(false);
         traceLogTextarea.setFont(new JLabel().getFont());
-        traceLogTextarea.setBackground(Color.white);
+        if (View.isOceanic()) {
+            traceLogTextarea.setBackground(Color.white);
+        }
 
         Main.getDebugHandler().addTraceListener(new DebuggerHandler.TraceListener() {
 

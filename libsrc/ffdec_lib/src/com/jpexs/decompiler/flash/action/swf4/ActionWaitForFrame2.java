@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2023 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.action.swf4;
 
 import com.jpexs.decompiler.flash.BaseLocalData;
@@ -31,10 +32,13 @@ import com.jpexs.decompiler.flash.exporters.modes.ScriptExportMode;
 import com.jpexs.decompiler.flash.types.annotations.SWFVersion;
 import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphTargetItem;
+import com.jpexs.decompiler.graph.SecondPassData;
+import com.jpexs.decompiler.graph.SecondPassException;
 import com.jpexs.decompiler.graph.TranslateStack;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Set;
 
@@ -49,8 +53,8 @@ public class ActionWaitForFrame2 extends Action implements ActionStore {
 
     List<Action> skipped;
 
-    public ActionWaitForFrame2(int skipCount) {
-        super(0x8D, 1);
+    public ActionWaitForFrame2(int skipCount, String charset) {
+        super(0x8D, 1, charset);
         this.skipCount = skipCount;
         skipped = new ArrayList<>();
     }
@@ -67,7 +71,7 @@ public class ActionWaitForFrame2 extends Action implements ActionStore {
     }
 
     public ActionWaitForFrame2(int actionLength, SWFInputStream sis) throws IOException {
-        super(0x8D, actionLength);
+        super(0x8D, actionLength, sis.getCharset());
         skipCount = sis.readUI8("skipCount");
         skipped = new ArrayList<>();
         /*for (int i = 0; i < skipCount; i++) {
@@ -100,8 +104,8 @@ public class ActionWaitForFrame2 extends Action implements ActionStore {
          }*/
     }
 
-    public ActionWaitForFrame2(FlasmLexer lexer) throws IOException, ActionParseException {
-        super(0x8D, -1);
+    public ActionWaitForFrame2(FlasmLexer lexer, String charset) throws IOException, ActionParseException {
+        super(0x8D, -1, charset);
         skipCount = (int) lexLong(lexer);
         skipped = new ArrayList<>();
     }
@@ -145,9 +149,20 @@ public class ActionWaitForFrame2 extends Action implements ActionStore {
     }
 
     @Override
-    public void translate(boolean insideDoInitAction, GraphSourceItem lineStartAction, TranslateStack stack, List<GraphTargetItem> output, HashMap<Integer, String> regNames, HashMap<String, GraphTargetItem> variables, HashMap<String, GraphTargetItem> functions, int staticOperation, String path) throws InterruptedException {
+    public void translate(SecondPassData secondPassData, boolean insideDoInitAction, GraphSourceItem lineStartAction, TranslateStack stack, List<GraphTargetItem> output, HashMap<Integer, String> regNames, HashMap<String, GraphTargetItem> variables, HashMap<String, GraphTargetItem> functions, int staticOperation, String path) throws InterruptedException {
         GraphTargetItem frame = stack.pop();
-        List<GraphTargetItem> body = ActionGraph.translateViaGraph(insideDoInitAction, regNames, variables, functions, skipped, SWF.DEFAULT_VERSION, staticOperation, path);
+        List<GraphTargetItem> body;
+        HashMap<String, GraphTargetItem> variablesBackup = new LinkedHashMap<>(variables);
+        HashMap<String, GraphTargetItem> functionsBackup = new LinkedHashMap<>(functions);
+        try {
+            body = ActionGraph.translateViaGraph(null, insideDoInitAction, true, regNames, variables, functions, skipped, SWF.DEFAULT_VERSION, staticOperation, path, getCharset());
+        } catch (SecondPassException spe) {
+            variables.clear();
+            variables.putAll(variablesBackup);
+            functions.clear();
+            functions.putAll(functionsBackup);
+            body = ActionGraph.translateViaGraph(spe.getData(), insideDoInitAction, true, regNames, variables, functions, skipped, SWF.DEFAULT_VERSION, staticOperation, path, getCharset());
+        }
         output.add(new IfFrameLoadedActionItem(frame, body, this, lineStartAction));
     }
 

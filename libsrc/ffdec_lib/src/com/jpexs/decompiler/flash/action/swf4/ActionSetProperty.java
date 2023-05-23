@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2023 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -29,14 +29,19 @@ import com.jpexs.decompiler.flash.action.model.PostIncrementActionItem;
 import com.jpexs.decompiler.flash.action.model.SetPropertyActionItem;
 import com.jpexs.decompiler.flash.action.model.StoreRegisterActionItem;
 import com.jpexs.decompiler.flash.action.model.TemporaryRegister;
+import com.jpexs.decompiler.flash.action.model.TemporaryRegisterMark;
 import com.jpexs.decompiler.flash.action.model.operations.PreDecrementActionItem;
 import com.jpexs.decompiler.flash.action.model.operations.PreIncrementActionItem;
 import com.jpexs.decompiler.flash.types.annotations.SWFVersion;
 import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphTargetItem;
+import com.jpexs.decompiler.graph.SecondPassData;
 import com.jpexs.decompiler.graph.TranslateStack;
+import com.jpexs.helpers.utf8.Utf8Helper;
 import java.util.HashMap;
 import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  *
@@ -46,7 +51,7 @@ import java.util.List;
 public class ActionSetProperty extends Action {
 
     public ActionSetProperty() {
-        super(0x23, 0);
+        super(0x23, 0, Utf8Helper.charsetName);
     }
 
     @Override
@@ -71,7 +76,7 @@ public class ActionSetProperty extends Action {
     }
 
     @Override
-    public void translate(boolean insideDoInitAction, GraphSourceItem lineStartAction, TranslateStack stack, List<GraphTargetItem> output, HashMap<Integer, String> regNames, HashMap<String, GraphTargetItem> variables, HashMap<String, GraphTargetItem> functions, int staticOperation, String path) {
+    public void translate(SecondPassData secondPassData, boolean insideDoInitAction, GraphSourceItem lineStartAction, TranslateStack stack, List<GraphTargetItem> output, HashMap<Integer, String> regNames, HashMap<String, GraphTargetItem> variables, HashMap<String, GraphTargetItem> functions, int staticOperation, String path) {
         GraphTargetItem value = stack.pop().getThroughDuplicate();
         GraphTargetItem index = stack.pop().getThroughDuplicate();
         GraphTargetItem target = stack.pop().getThroughDuplicate();
@@ -83,7 +88,15 @@ public class ActionSetProperty extends Action {
                 indexInt = (int) Math.round((Double) ((DirectValueActionItem) index).value);
             } else if (((DirectValueActionItem) index).value instanceof Float) {
                 indexInt = (int) Math.round((Float) ((DirectValueActionItem) index).value);
+            } else if (((DirectValueActionItem) index).isString()) {
+                try {
+                    indexInt = Integer.parseInt(((DirectValueActionItem) index).toString());
+                } catch (NumberFormatException nfe) {
+                    Logger.getLogger(ActionGetProperty.class.getName()).log(Level.SEVERE, "Invalid property index: {0}", index.toString());
+                }
             }
+        } else {
+            Logger.getLogger(ActionGetProperty.class.getName()).log(Level.SEVERE, "Invalid property index: {0}", index.getClass().getSimpleName());
         }
         if (value.getThroughDuplicate() instanceof IncrementActionItem) {
             GraphTargetItem obj = ((IncrementActionItem) value).object;
@@ -95,6 +108,15 @@ public class ActionSetProperty extends Action {
                 }
                 stack.push(new PostIncrementActionItem(this, lineStartAction, obj));
                 return;
+            } else {
+                IncrementActionItem dec = (IncrementActionItem) value.getThroughDuplicate();
+                if (dec.object instanceof GetPropertyActionItem) {
+                    GetPropertyActionItem gp = (GetPropertyActionItem) dec.object;
+                    if (gp.target.valueEquals(target) && gp.propertyIndex == indexInt) {
+                        output.add(new PostIncrementActionItem(this, lineStartAction, gp));
+                        return;
+                    }
+                }
             }
         }
         if (value.getThroughDuplicate() instanceof DecrementActionItem) {
@@ -106,6 +128,15 @@ public class ActionSetProperty extends Action {
                 }
                 stack.push(new PostDecrementActionItem(this, lineStartAction, obj));
                 return;
+            } else {
+                DecrementActionItem dec = (DecrementActionItem) value.getThroughDuplicate();
+                if (dec.object instanceof GetPropertyActionItem) {
+                    GetPropertyActionItem gp = (GetPropertyActionItem) dec.object;
+                    if (gp.target.valueEquals(target) && gp.propertyIndex == indexInt) {
+                        output.add(new PostDecrementActionItem(this, lineStartAction, gp));
+                        return;
+                    }
+                }
             }
         }
 
@@ -134,7 +165,9 @@ public class ActionSetProperty extends Action {
                     sr.temporary = true;
                     ((SetPropertyActionItem) ret).setValue(sr);
                 }
-                variables.put("__register" + sr.register.number, new TemporaryRegister(sr.register.number, ret));
+                TemporaryRegister tr = new TemporaryRegister(sr.register.number, ret);
+                variables.put("__register" + sr.register.number, tr);
+                output.add(new TemporaryRegisterMark(tr));                
                 return;
             }
         }

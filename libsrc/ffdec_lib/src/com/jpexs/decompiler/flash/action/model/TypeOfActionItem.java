@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2023 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -38,14 +38,21 @@ import java.util.Set;
 public class TypeOfActionItem extends ActionItem {
 
     public TypeOfActionItem(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem value) {
-        super(instruction, lineStartIns, PRECEDENCE_PRIMARY, value);
+        super(instruction, lineStartIns, PRECEDENCE_UNARY, value);
     }
 
     @Override
     public GraphTextWriter appendTo(GraphTextWriter writer, LocalData localData) throws InterruptedException {
         writer.append("typeof ");
         writer.spaceBeforeCallParenthesies(1);
+        if (value.getPrecedence() > getPrecedence()) {
+            writer.append("(");
+        }
         value.toString(writer, localData);
+        if (value.getPrecedence() > getPrecedence()) {
+            writer.append(")");
+        }
+
         return writer;
     }
 

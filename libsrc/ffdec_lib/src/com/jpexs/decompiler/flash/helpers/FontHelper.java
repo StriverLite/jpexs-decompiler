@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2023 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -28,9 +28,6 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.attribute.BasicFileAttributes;
 import java.text.AttributedCharacterIterator;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -38,7 +35,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.function.BiPredicate;
 
 /**
  *
@@ -51,7 +47,6 @@ public class FontHelper {
         Class<?> clFmFactory = Class.forName("sun.font.FontManagerFactory");
         return clFmFactory.getDeclaredMethod("getInstance").invoke(null);
     }*/
-
     /**
      * Gets all available fonts in the system
      *
@@ -89,7 +84,7 @@ public class FontHelper {
         } catch (Throwable ex) {
             // ignore
         }
-        */
+         */
         if (fonts == null) {
             fonts = GraphicsEnvironment.getLocalGraphicsEnvironment().getAllFonts();
         }
@@ -312,23 +307,28 @@ public class FontHelper {
         return ret;
     }
 
+    private static List<File> getTtfFilesRecursively(File dir) {
+        List<File> ret = new ArrayList<>();
+        try {
+            File files[] = dir.listFiles();
+            for (File f : files) {
+                if (f.isDirectory()) {
+                    ret.addAll(getTtfFilesRecursively(f));
+                } else if (f.getAbsolutePath().endsWith(".ttf") || f.getAbsolutePath().endsWith(".TTF")) {
+                    ret.add(f);
+                }
+            }
+        } catch (Exception ex) {
+            //ignore any access errors
+        }
+        return ret;
+    }
+
     private static List<File> getSystemFontFiles() {
         List<File> dirs = getSystemFontDirectories();
         List<File> ret = new ArrayList<>();
         for (File d : dirs) {
-            try {
-                Object[] paths = Files.find(d.toPath(), Integer.MAX_VALUE, new BiPredicate<Path, BasicFileAttributes>() {
-                    @Override
-                    public boolean test(Path t, BasicFileAttributes u) {
-                        return u.isRegularFile() && (t.toString().endsWith(".ttf") || t.toString().endsWith(".TTF"));
-                    }
-                }).toArray();
-                for (Object o : paths) {
-                    ret.add(((Path) o).toFile());
-                }
-            } catch (IOException ex) {
-                //ignore
-            }
+            ret.addAll(getTtfFilesRecursively(d));
         }
         return ret;
     }

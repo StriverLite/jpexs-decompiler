@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2023 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -58,10 +58,12 @@ public class DeleteActionItem extends ActionItem {
         writer.append("delete ");
         if (object != null) {
             object.toStringNoQuotes(writer, localData);
-            if (IdentifiersDeobfuscation.isValidName(false, propertyName.toStringNoQuotes(localData))) {
+            if ((propertyName instanceof DirectValueActionItem) && ((DirectValueActionItem) propertyName).isString()
+                    && (IdentifiersDeobfuscation.isValidName(false, propertyName.toStringNoQuotes(localData)))) {
                 writer.append(".");
                 propertyName.toStringNoQuotes(writer, localData);
-            } else {
+            }
+            else {
                 writer.append("[");
                 propertyName.toString(writer, localData);
                 writer.append("]");
@@ -69,10 +71,16 @@ public class DeleteActionItem extends ActionItem {
             return writer;
         }
 
+        if (propertyName.getPrecedence() > getPrecedence()) {
+            writer.append("(");
+        }
         if (IdentifiersDeobfuscation.isValidName(false, propertyName.toStringNoQuotes(localData))) {
             propertyName.toStringNoQuotes(writer, localData);
         } else {
             propertyName.toString(writer, localData);
+        }
+        if (propertyName.getPrecedence() > getPrecedence()) {
+            writer.append(")");
         }
         return writer;
     }
@@ -86,7 +94,7 @@ public class DeleteActionItem extends ActionItem {
     }
 
     @Override
-    public List<GraphSourceItem> toSource(SourceGeneratorLocalData localData, SourceGenerator generator) throws CompilationException {
+    public List<GraphSourceItem> toSource(SourceGeneratorLocalData localData, SourceGenerator generator) throws CompilationException {        
         if (object == null) {
             return toSourceMerge(localData, generator, propertyName, new ActionDelete2());
         }

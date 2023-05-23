@@ -36,6 +36,8 @@ import java.util.Stack;
 
     private static String xmlTagName = "";
 
+    private int repeatNum = 1;
+
     public int yychar() {
         return yychar;
     }
@@ -111,15 +113,13 @@ Identifier = [:jletter:][:jletterdigit:]*
 
 IdentifierOrParent = {Identifier} | ".."
 
-Path = "/" | "/"? {IdentifierOrParent} ("/" {IdentifierOrParent})* "/"?
-
 /* integer literals */
 DecIntegerLiteral = 0 | [1-9][0-9]*
 
-HexIntegerLiteral = 0 [xX] 0* {HexDigit} {1,8}
+HexIntegerLiteral = 0 [xX] 0* {HexDigit}+
 HexDigit          = [0-9a-fA-F]
 
-OctIntegerLiteral = 0+ [1-3]? {OctDigit} {1,15}
+OctIntegerLiteral = 0+ [1-3]? {OctDigit}+
 OctDigit          = [0-7]
 
 /* floating point literals */
@@ -251,10 +251,6 @@ Preprocessor = \u00A7\u00A7 {Identifier}
   [uU][nN][dD][eE][fF][iI][nN][eE][dD]                                            { return new ParsedSymbol(SymbolGroup.GLOBALCONST, SymbolType.UNDEFINED, yytext()); }
   /* newline */ 
   [nN][eE][wW][lL][iI][nN][eE]                                                    { return new ParsedSymbol(SymbolGroup.GLOBALCONST, SymbolType.NEWLINE, yytext()); }
-  /* Infinity */ 
-  [iI][nN][fF][iI][nN][iI][tT][yY]                                                { return new ParsedSymbol(SymbolGroup.GLOBALCONST, SymbolType.INFINITY, yytext()); }
-  /* NaN */ 
-  [nN][aA][nN]                                                                    { return new ParsedSymbol(SymbolGroup.GLOBALCONST, SymbolType.NAN, yytext()); }
   /* getVersion */ 
   [gG][eE][tT][vV][eE][rR][sS][iI][oO][nN]                                        { return new ParsedSymbol(SymbolGroup.GLOBALFUNC, SymbolType.GETVERSION, yytext()); }
   /* call */ 
@@ -362,13 +358,20 @@ Preprocessor = \u00A7\u00A7 {Identifier}
 
   /* numeric literals */
 
-  {DecIntegerLiteral}            { return new ParsedSymbol(SymbolGroup.INTEGER, SymbolType.INTEGER, Long.parseLong((yytext()))); }
+  {DecIntegerLiteral}            { 
+                                    try{
+                                        return new ParsedSymbol(SymbolGroup.INTEGER, SymbolType.INTEGER, Long.parseLong(yytext())); 
+                                    } catch(NumberFormatException nfe){
+                                        //its too long for a Long var
+                                        return new ParsedSymbol(SymbolGroup.DOUBLE, SymbolType.DOUBLE, Double.parseDouble(yytext())); 
+                                    }
+                                }
 
   {HexIntegerLiteral}            { return new ParsedSymbol(SymbolGroup.INTEGER, SymbolType.INTEGER, Long.parseLong(yytext().substring(2), 16)); }
 
   {OctIntegerLiteral}            { return new ParsedSymbol(SymbolGroup.INTEGER, SymbolType.INTEGER, Long.parseLong(yytext(), 8)); }
 
-  {DoubleLiteral}                { return new ParsedSymbol(SymbolGroup.DOUBLE, SymbolType.DOUBLE, Double.parseDouble((yytext()))); }
+  {DoubleLiteral}                { return new ParsedSymbol(SymbolGroup.DOUBLE, SymbolType.DOUBLE, Double.parseDouble(yytext())); }
 
   /* comments */
   {Comment}                      { yyline += count(yytext(),"\n"); }
@@ -377,32 +380,33 @@ Preprocessor = \u00A7\u00A7 {Identifier}
   /* whitespace */
   {WhiteSpace}                   { /*ignore*/ }
   /* identifiers */
-  {Identifier}                   { return new ParsedSymbol(SymbolGroup.IDENTIFIER, SymbolType.IDENTIFIER, yytext()); }
-  {Path}                         { return new ParsedSymbol(SymbolGroup.PATH, SymbolType.PATH, yytext()); }
+  {Identifier}                   { return new ParsedSymbol(SymbolGroup.IDENTIFIER, SymbolType.IDENTIFIER, yytext()); }    
 }
 
 
 <OIDENTIFIER> {
     "\u00A7"                         {
                                      yybegin(YYINITIAL);
+                                     repeatNum = 1;
                                      // length also includes the trailing quote
                                      return new ParsedSymbol(SymbolGroup.IDENTIFIER, SymbolType.IDENTIFIER, string.toString());
                                  }
 
-  {OIdentifierCharacter}+             { string.append(yytext()); }
+  {OIdentifierCharacter}         { for(int r=0;r<repeatNum;r++) string.append(yytext()); repeatNum = 1;}
 
   /* escape sequences */
-  "\\b"                          { string.append('\b'); }
-  "\\t"                          { string.append('\t'); }
-  "\\n"                          { string.append('\n'); }
-  "\\f"                          { string.append('\f'); }
-  "\\\u00A7"                     { string.append('\u00A7'); }
-  "\\r"                          { string.append('\r'); }
-  "\\\\"                         { string.append('\\'); }
+  "\\b"                          { for(int r=0;r<repeatNum;r++) string.append('\b'); repeatNum = 1;}
+  "\\t"                          { for(int r=0;r<repeatNum;r++) string.append('\t'); repeatNum = 1;}
+  "\\n"                          { for(int r=0;r<repeatNum;r++) string.append('\n'); repeatNum = 1;}
+  "\\f"                          { for(int r=0;r<repeatNum;r++) string.append('\f'); repeatNum = 1;}
+  "\\\u00A7"                     { for(int r=0;r<repeatNum;r++) string.append('\u00A7'); repeatNum = 1;}
+  "\\r"                          { for(int r=0;r<repeatNum;r++) string.append('\r'); repeatNum = 1;}
+  "\\\\"                         { for(int r=0;r<repeatNum;r++) string.append('\\'); repeatNum = 1;}
   \\x{HexDigit}{2}        { char val = (char) Integer.parseInt(yytext().substring(2), 16);
-                        				   string.append(val); }
+                        				   for(int r=0;r<repeatNum;r++) string.append(val); repeatNum = 1;}
   \\u{HexDigit}{4}        { char val = (char) Integer.parseInt(yytext().substring(2), 16);
-                        				   string.append(val); }
+                        				   for(int r=0;r<repeatNum;r++) string.append(val); repeatNum = 1;}
+  \\\{{DecIntegerLiteral}\}      { repeatNum = Integer.parseInt(yytext().substring(2, yytext().length()-1)); }
 
   /* escape sequences */
 

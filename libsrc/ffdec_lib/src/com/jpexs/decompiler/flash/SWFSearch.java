@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2023 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash;
 
 import com.jpexs.helpers.Helper;
@@ -22,8 +23,8 @@ import com.jpexs.helpers.ProgressListener;
 import com.jpexs.helpers.Searchable;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -43,7 +44,7 @@ public class SWFSearch {
 
     private final Set<ProgressListener> listeners = new HashSet<>();
 
-    private final Map<Long, MemoryInputStream> swfStreams = new HashMap<>();
+    private final Map<Long, MemoryInputStream> swfStreams = new LinkedHashMap<>();
 
     public SWFSearch(Searchable s, boolean noCheck, SearchMode searchMode) {
         this.s = s;

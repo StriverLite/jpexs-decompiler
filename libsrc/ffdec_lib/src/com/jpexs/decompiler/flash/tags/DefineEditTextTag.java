@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2023 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -370,6 +370,9 @@ public class DefineEditTextTag extends TextTag {
     }
 
     private List<CharacterWithStyle> getTextWithStyle() {
+        if (swf == null) {
+            return new ArrayList<>();
+        }
         String str = "";
         TextStyle style = new TextStyle();
         if (fontClass != null) {
@@ -402,6 +405,9 @@ public class DefineEditTextTag extends TextTag {
                                 // todo: parse the following attribute:
                                 // align
                                 break;
+                            case "a":
+                                // todo: handle link - href, target attributes
+                                break;
                             case "b":
                                 style = style.clone();
                                 style.bold = true;
@@ -419,13 +425,13 @@ public class DefineEditTextTag extends TextTag {
                                 break;
                             case "font":
                                 style = style.clone();
-                                String color = attributes.getValue("color");
+                                String color = unescape(attributes.getValue("color"));
                                 if (color != null) {
                                     if (color.startsWith("#")) {
                                         style.textColor = new RGBA(Color.decode(color));
                                     }
                                 }
-                                String size = attributes.getValue("size");
+                                String size = unescape(attributes.getValue("size"));
                                 if (size != null && size.length() > 0) {
                                     char firstChar = size.charAt(0);
                                     if (firstChar != '+' && firstChar != '-') {
@@ -436,11 +442,11 @@ public class DefineEditTextTag extends TextTag {
                                         // todo: parse relative sizes
                                     }
                                 }
-                                String face = attributes.getValue("face");
+                                String face = unescape(attributes.getValue("face"));
                                  {
                                     if (face != null && face.length() > 0) {
                                         style.fontFace = face;
-                                        FontTag insideFont = swf.getFontByName(face);
+                                        FontTag insideFont = swf.getFontByNameInTag(face);
                                         style.font = insideFont;
                                         if (insideFont != null) {
                                             style.fontFace = null;
@@ -458,7 +464,6 @@ public class DefineEditTextTag extends TextTag {
                                 ret.add(cs);
                                 break;
                         }
-                        //ret = entitiesReplace(ret);
                     }
 
                     @Override
@@ -480,19 +485,38 @@ public class DefineEditTextTag extends TextTag {
                         }
                     }
 
+                    private String unescape(String txt) {
+                        if (txt == null) {
+                            return null;
+                        }
+                        txt = txt.replace("/{entity-nbsp}", "\u00A0");
+                        txt = txt.replace("/{entity-lt}", "<");
+                        txt = txt.replace("/{entity-gt}", ">");
+                        txt = txt.replace("/{entity-quot}", "\"");
+                        txt = txt.replace("/{entity-amp}", "&");
+                        return txt;
+                    }
+
                     @Override
                     public void characters(char[] ch, int start, int length) throws SAXException {
-                        String txt = new String(ch, start, length);
+                        String txt = unescape(new String(ch, start, length));
                         TextStyle style = styles.peek();
                         addCharacters(ret, txt, style);
                     }
                 };
+
+                str = str.replace("&nbsp;", "/{entity-nbsp}");
+                str = str.replace("&lt;", "/{entity-lt}");
+                str = str.replace("&gt;", "/{entity-gt}");
+                str = str.replace("&quot;", "/{entity-quot}");
+                str = str.replace("&amp;", "/{entity-amp}");
+                str = str.replace("&", "&amp;");
+                
                 str = "<!DOCTYPE html [\n"
-                        + "    <!ENTITY nbsp \"&#160;\"> \n"
                         + "]><root>" + str + "</root>";
                 saxParser.parse(new ByteArrayInputStream(str.getBytes(Utf8Helper.charset)), handler);
             } catch (ParserConfigurationException | SAXException | IOException ex) {
-                Logger.getLogger(DefineEditTextTag.class.getName()).log(Level.SEVERE, null, ex);
+                Logger.getLogger(DefineEditTextTag.class.getName()).log(Level.SEVERE, "Error parsing text " + getCharacterId(), ex);
             }
         } else {
             addCharacters(ret, str, style);
@@ -961,7 +985,7 @@ public class DefineEditTextTag extends TextTag {
     }
 
     @Override
-    public void toImage(int frame, int time, int ratio, RenderContext renderContext, SerializableImage image, SerializableImage fullImage, boolean isClip, Matrix transformation, Matrix strokeTransformation, Matrix absoluteTransformation, Matrix fullTransformation, ColorTransform colorTransform, double unzoom, boolean sameImage, ExportRectangle viewRect, boolean scaleStrokes, int drawMode) {
+    public void toImage(int frame, int time, int ratio, RenderContext renderContext, SerializableImage image, SerializableImage fullImage, boolean isClip, Matrix transformation, Matrix strokeTransformation, Matrix absoluteTransformation, Matrix fullTransformation, ColorTransform colorTransform, double unzoom, boolean sameImage, ExportRectangle viewRect, boolean scaleStrokes, int drawMode, int blendMode, boolean canUseSmoothing) {
         render(TextRenderMode.BITMAP, image, null, null, transformation, colorTransform, 1);
     }
 
@@ -1008,7 +1032,7 @@ public class DefineEditTextTag extends TextTag {
         }
     }
 
-    public List<TEXTRECORD> getTextRecords() {
+    public List<TEXTRECORD> getTextRecords() {        
         DynamicTextModel textModel = new DynamicTextModel();
         List<CharacterWithStyle> txt = getTextWithStyle();
         TextStyle lastStyle = null;
@@ -1043,11 +1067,16 @@ public class DefineEditTextTag extends TextTag {
                 ge.fontStyle = (lastStyle.bold ? Font.BOLD : 0) | (lastStyle.italic ? Font.ITALIC : 0);
                 ge.character = c;
 
-                ge.glyphIndex = -1; // always use system character glyphs in edit text
+                if (font != null) {
+                    ge.glyphIndex = font.charToGlyph(c);
+                } else {
+                    ge.glyphIndex = -1;
+                }
 
                 String fontName = ge.fontFace != null ? ge.fontFace : FontTag.getDefaultFontName();
                 int fontStyle = font == null ? ge.fontStyle : font.getFontStyle();
-                ge.glyphAdvance = (int) Math.round(SWF.unitDivisor * FontTag.getSystemFontAdvance(fontName, fontStyle, (int) (lastStyle.fontHeight / SWF.unitDivisor), c, nextChar));
+                ge.glyphAdvance = ge.glyphIndex == -1 ? (int) Math.round(SWF.unitDivisor * FontTag.getSystemFontAdvance(fontName, fontStyle, (int) (lastStyle.fontHeight / SWF.unitDivisor), c, nextChar))
+                        : (int) Math.round(font.getGlyphAdvance(ge.glyphIndex) / font.getDivider() * lastStyle.fontHeight / 1024);
 
                 textModel.addGlyph(c, ge);
                 if (Character.isWhitespace(c)) {
@@ -1118,7 +1147,8 @@ public class DefineEditTextTag extends TextTag {
 
         List<TEXTRECORD> allTextRecords = new ArrayList<>();
         int lastHeight = 0;
-        int yOffset = -leading;
+        int yOffset = 0;
+        boolean firstLine = true;
         for (List<SameStyleTextRecord> line : lines) {
             int width = 0;
             int currentOffset = 0;
@@ -1127,13 +1157,19 @@ public class DefineEditTextTag extends TextTag {
             } else {
                 for (SameStyleTextRecord tr : line) {
                     width += tr.width;
-                    int lineHeight = tr.style.fontHeight + tr.style.fontLeading;
+                    int lineHeight = (tr.style.font != null /*Font missing*/) && tr.style.font.hasLayout() ? (int) Math.round(tr.style.fontHeight * tr.style.font.getAscent() / tr.style.font.getDivider() / 1024.0) + tr.style.fontLeading
+                            : tr.style.fontHeight + tr.style.fontLeading;
+                    if (tr.style.font != null && !firstLine && tr.style.font.hasLayout()) {
+                        lineHeight += (int) Math.round(tr.style.fontHeight * tr.style.font.getDescent() / tr.style.font.getDivider() / 1024.0);
+                    }
+                    //TODO: maybe get ascent/descent from system font when not haslayout
                     lastHeight = lineHeight;
                     if (lineHeight > currentOffset) {
                         currentOffset = lineHeight;
                     }
                 }
             }
+            firstLine = false;
             yOffset += currentOffset;
             int alignOffset = 0;
             switch (align) {

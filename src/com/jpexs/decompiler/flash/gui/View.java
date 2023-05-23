@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS
+ *  Copyright (C) 2010-2023 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -17,8 +17,8 @@
 package com.jpexs.decompiler.flash.gui;
 
 import com.jpexs.decompiler.flash.configuration.Configuration;
-import com.jpexs.decompiler.flash.configuration.ConfigurationItem;
-import java.awt.BorderLayout;
+import com.jpexs.decompiler.flash.gui.tagtree.AbstractTagTreeModel;
+import com.jpexs.decompiler.flash.treeitems.TreeItem;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Desktop;
@@ -55,19 +55,15 @@ import javax.imageio.ImageIO;
 import javax.swing.AbstractAction;
 import javax.swing.Action;
 import javax.swing.ActionMap;
-import javax.swing.Icon;
 import javax.swing.ImageIcon;
 import javax.swing.InputMap;
 import javax.swing.JButton;
-import javax.swing.JCheckBox;
 import javax.swing.JComponent;
 import javax.swing.JDialog;
 import javax.swing.JEditorPane;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JMenuItem;
-import javax.swing.JOptionPane;
-import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.JRootPane;
 import javax.swing.JTable;
@@ -155,7 +151,7 @@ public class View {
      * Sets windows Look and Feel
      */
     public static void setLookAndFeel() {
-
+        
         // Save default font for Chinese characters
         final Font defaultFont = (new JLabel()).getFont();
         try {
@@ -185,16 +181,20 @@ public class View {
             }
 
             UIManager.put(SubstanceLookAndFeel.COLORIZATION_FACTOR, 0.999);//This works for not changing labels color and not changing Dialogs title
-            UIManager.put("Tree.expandedIcon", getIcon("expand16"));
-            UIManager.put("Tree.collapsedIcon", getIcon("collapse16"));
+            if (View.isOceanic()) {
+                UIManager.put("Tree.expandedIcon", getIcon("expand16"));
+                UIManager.put("Tree.collapsedIcon", getIcon("collapse16"));
+            }
             UIManager.put("ColorChooserUI", BasicColorChooserUI.class.getName());
             UIManager.put("ColorChooser.swatchesRecentSwatchSize", new Dimension(20, 20));
             UIManager.put("ColorChooser.swatchesSwatchSize", new Dimension(20, 20));
             UIManager.put("RibbonApplicationMenuPopupPanelUI", MyRibbonApplicationMenuPopupPanelUI.class.getName());
             UIManager.put("RibbonApplicationMenuButtonUI", MyRibbonApplicationMenuButtonUI.class.getName());
             UIManager.put("ProgressBarUI", MyProgressBarUI.class.getName());
-            UIManager.put("TextField.background", Color.white);
-            UIManager.put("FormattedTextField.background", Color.white);
+            if (View.isOceanic()) {
+                UIManager.put("TextField.background", Color.white);
+                UIManager.put("FormattedTextField.background", Color.white);
+            }
             UIManager.put("CommandButtonUI", MyCommandButtonUI.class.getName());
 
             if (defaultFontPolicy == null) {
@@ -490,7 +490,7 @@ public class View {
         int rowCount = tree.getRowCount();
         for (int i = 0; i < rowCount; i++) {
             try {
-                TreePath path = tree.getPathForRow(i);
+                TreePath path = tree.getPathForRow(i);               
                 if (tree.isExpanded(path)) {
                     List<String> pathAsStringList = new ArrayList<>();
                     for (Object pathCompnent : path.getPath()) {
@@ -540,7 +540,16 @@ public class View {
             int childCount = model.getChildCount(node);
             for (int j = 0; j < childCount; j++) {
                 Object child = model.getChild(node, j);
-                if (child.toString().equals(name)) {
+                String childStr = child.toString();
+                int index = 1;                
+                if (model instanceof AbstractTagTreeModel) {
+                    AbstractTagTreeModel aModel = (AbstractTagTreeModel) model;
+                    index = aModel.getItemIndex((TreeItem) child);
+                    if (index > 1) {
+                        childStr += " [" + index + "]";
+                    }
+                }
+                if (childStr.equals(name)) {
                     node = child;
                     path.add(node);
                     break;
@@ -673,7 +682,7 @@ public class View {
         }
         return conf;
     }
-
+    
     public static BufferedImage toCompatibleImage(BufferedImage image) {
         if (image.getColorModel().equals(getDefaultConfiguration().getColorModel())) {
             return image;
@@ -693,5 +702,9 @@ public class View {
         }
 
         return image;
+    }
+
+    public static boolean isOceanic() {
+        return SubstanceLookAndFeel.getCurrentSkin() instanceof OceanicSkin;
     }
 }

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2023 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -18,7 +18,12 @@ package com.jpexs.decompiler.flash.action.model;
 
 import com.jpexs.decompiler.flash.IdentifiersDeobfuscation;
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
+import com.jpexs.decompiler.flash.action.parser.script.ActionSourceGenerator;
+import com.jpexs.decompiler.flash.action.parser.script.VariableActionItem;
+import com.jpexs.decompiler.flash.action.swf4.RegisterNumber;
 import com.jpexs.decompiler.flash.action.swf5.ActionCallFunction;
+import com.jpexs.decompiler.flash.action.swf5.ActionCallMethod;
+import com.jpexs.decompiler.flash.ecma.Undefined;
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
 import com.jpexs.decompiler.flash.helpers.hilight.HighlightData;
 import com.jpexs.decompiler.graph.CompilationException;
@@ -63,15 +68,18 @@ public class CallFunctionActionItem extends ActionItem {
 
         if (functionName instanceof DirectValueActionItem) {
             if (!IdentifiersDeobfuscation.isValidName(false, (functionName).toStringNoQuotes(localData))) {
-                writer.append("eval(");
                 functionName.toString(writer, localData);
-                writer.append(")");
             } else {
                 functionName.toStringNoQuotes(writer, localData);
             }
-            //writer.append(IdentifiersDeobfuscation.printIdentifier(false, (functionName).toStringNoQuotes(localData)));
         } else {
+            if (functionName.getPrecedence() > getPrecedence()) {
+                writer.append("(");
+            }
             functionName.appendTry(writer, localData);
+            if (functionName.getPrecedence() > getPrecedence()) {
+                writer.append(")");
+            }
         }
         writer.spaceBeforeCallParenthesies(arguments.size());
         writer.append("(");
@@ -160,6 +168,19 @@ public class CallFunctionActionItem extends ActionItem {
 
     @Override
     public List<GraphSourceItem> toSource(SourceGeneratorLocalData localData, SourceGenerator generator) throws CompilationException {
+
+        if (functionName instanceof VariableActionItem) {
+            VariableActionItem varItem = (VariableActionItem) functionName;
+            if (varItem.getBoxedValue() instanceof DirectValueActionItem) {
+                if (((DirectValueActionItem) varItem.getBoxedValue()).value instanceof RegisterNumber) {
+                    return toSourceMerge(localData, generator, toSourceCall(localData, generator, arguments), varItem.getBoxedValue(), new DirectValueActionItem(Undefined.INSTANCE), new ActionCallMethod());
+                }
+            }
+            String varName = varItem.getVariableName();
+            ActionSourceGenerator asg = (ActionSourceGenerator) generator;
+            return toSourceMerge(localData, generator, toSourceCall(localData, generator, arguments), asg.pushConst(varName), new ActionCallFunction());
+        }
+
         return toSourceMerge(localData, generator, toSourceCall(localData, generator, arguments), functionName, new ActionCallFunction());
     }
 

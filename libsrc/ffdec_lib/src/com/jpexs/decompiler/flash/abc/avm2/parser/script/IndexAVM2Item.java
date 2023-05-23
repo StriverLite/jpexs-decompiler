@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2023 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -154,13 +154,16 @@ public class IndexAVM2Item extends AssignableAVM2Item {
         } else {
             return toSourceMerge(localData, generator,
                     object,
-                    call ? ins(AVM2Instructions.Dup) : null,
+                    call ? dupSetTemp(localData, generator, ret_temp) : null,
                     index,
+                    construct ? getTemp(localData, generator, ret_temp) : null,
                     construct ? callargs : null,
                     ins(construct ? AVM2Instructions.ConstructProp : delete ? AVM2Instructions.DeleteProperty : AVM2Instructions.GetProperty, indexPropIndex, construct ? callargs.size() : null),
+                    call ? getTemp(localData, generator, ret_temp) : null,
                     call ? callargs : null,
                     call ? ins(AVM2Instructions.Call, callargs.size()) : null,
-                    needsReturn ? null : ins(AVM2Instructions.Pop));
+                    needsReturn ? null : ins(AVM2Instructions.Pop),
+                    (call || construct) ? killTemp(localData, generator, Arrays.asList(ret_temp)) : null);
         }
 
     }

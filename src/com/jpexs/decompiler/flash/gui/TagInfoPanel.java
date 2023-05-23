@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS
+ *  Copyright (C) 2010-2023 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -16,10 +16,15 @@
  */
 package com.jpexs.decompiler.flash.gui;
 
+import com.jpexs.decompiler.flash.SWF;
 import com.jpexs.decompiler.flash.configuration.Configuration;
 import com.jpexs.decompiler.flash.tags.TagInfo;
+import com.jpexs.decompiler.flash.tags.base.CharacterTag;
+import com.jpexs.decompiler.flash.treeitems.TreeItem;
 import java.awt.BorderLayout;
+import java.awt.Color;
 import java.awt.Font;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -44,7 +49,7 @@ public class TagInfoPanel extends JPanel {
 
     private final JEditorPane editorPane = new JEditorPane();
 
-    private TagInfo tagInfo = new TagInfo();
+    private TagInfo tagInfo = new TagInfo(null);
 
     public TagInfoPanel(MainPanel mainPanel) {
         this.mainPanel = mainPanel;
@@ -61,11 +66,32 @@ public class TagInfoPanel extends JPanel {
             public void hyperlinkUpdate(HyperlinkEvent hyperLink) {
 
                 if (HyperlinkEvent.EventType.ACTIVATED.equals(hyperLink.getEventType())) {
-                    String url = hyperLink.getDescription();
-                    String strId = url.substring(7);
-                    Integer id = Integer.parseInt(strId);
+                    URI url;
+                    try {
+                        url = new URI(hyperLink.getDescription());
+                    } catch (Exception ex) {
+                        return;
+                    }
 
-                    mainPanel.setTagTreeSelectedNode(mainPanel.getCurrentSwf().getCharacter(id));
+                    String scheme = url.getScheme();
+                    String strId = url.getHost();
+                    Integer id = "expand".equals(scheme) ? null : Integer.parseInt(strId);
+                    SWF swf = mainPanel.getCurrentSwf();
+
+                    TreeItem item = null;
+                    if ("expand".equals(scheme)) {
+                        updateHtmlContent(true);
+                    } else if ("char".equals(scheme)) {
+                        item = swf.getCharacter(id);
+                    } else if ("frame".equals(scheme)) {
+                        item = swf.getTimeline().getFrame(id);
+                    }
+                    if (item != null) {
+                        if (mainPanel.checkEdited()) {
+                            return;
+                        }
+                        mainPanel.setTagTreeSelectedNode(mainPanel.getCurrentTree(), item);
+                    }
                 }
             }
 
@@ -79,33 +105,44 @@ public class TagInfoPanel extends JPanel {
         buildHtmlContent();
     }
 
-    private void buildHtmlContent() {
+    private void updateHtmlContent(boolean expand) {
         String categoryName = "general";
         String result = "<html><body><table cellspacing='0' cellpadding='0'>";
         Boolean flipFlop = false;
 
         List<TagInfo.TagInfoItem> items = tagInfo.getInfos().get(categoryName);
 
-        result += "<tr bgcolor='#FDFDFD'>";
-        result += "<td width='50%' style='text-align:center;'>";
-        result += mainPanel.translate("tagInfo.header.name");
-        result += "</td>";
-        result += "<td width='50%' style='text-align:center;'>";
-        result += mainPanel.translate("tagInfo.header.value");
-        result += "</td>";
+        if (View.isOceanic()) {
+            result += "<tr bgcolor='#FDFDFD'>";
+        } else {
+            result += "</tr>";
+        }
+        result += String.format(
+                "<td width='50%%' style='text-align:center;'>%s</td>",
+                mainPanel.translate("tagInfo.header.name")
+        );
+        result += String.format(
+                "<td width='50%%' style='text-align:center;'>%s</td>",
+                mainPanel.translate("tagInfo.header.value")
+        );
         result += "</tr>";
 
+        SWF swf = tagInfo.getSwf();
         for (TagInfo.TagInfoItem item : items) {
-            Boolean convertToCharacterList;
 
             flipFlop = !flipFlop;
 
-            result += "<tr bgcolor='" + (flipFlop ? "#FDFDFD" : "#F4F4F4") + "'>";
+            if (View.isOceanic()) {
+                result += "<tr bgcolor='" + (flipFlop ? "#FDFDFD" : "#F4F4F4") + "'>";
+            } else {
+                result += "<tr>";
+            }
 
             String name = item.getName();
             String key = "tagInfo." + name;
 
-            convertToCharacterList = name.equals("dependentCharacters") || name.equals("neededCharacters");
+            boolean frameList = name.equals("dependentFrames");
+            boolean convertToLinkList = name.equals("dependentCharacters") || name.equals("neededCharacters") || frameList;
 
             try {
                 name = mainPanel.translate(key);
@@ -121,11 +158,10 @@ public class TagInfoPanel extends JPanel {
             if (value instanceof Boolean) {
                 boolean boolValue = (boolean) value;
                 value = boolValue ? AppStrings.translate("yes") : AppStrings.translate("no");
-            } else if (convertToCharacterList) {
-                String strValue = (String) value;
-                String[] strIds = strValue.split(", ");
+            } else if (convertToLinkList) {
+                String[] strIds = ((String) value).split(", ");
                 List<Integer> sortedIds = new ArrayList<>();
-                strValue = "";
+                String strValue = "";
 
                 for (String strId : strIds) {
                     sortedIds.add(Integer.parseInt(strId));
@@ -133,11 +169,31 @@ public class TagInfoPanel extends JPanel {
 
                 Collections.sort(sortedIds);
 
+                String scheme = frameList ? "frame" : "char";
+
                 for (int id : sortedIds) {
-                    strValue += "<a href='jump://" + id + "'>" + id + "</a>, ";
+                    int displayId = frameList ? id + 1 : id;
+
+                    if (!frameList && expand) {
+                        String charName;
+                        CharacterTag character = swf == null ? null : swf.getCharacter(id);
+                        if (swf == null || character == null) {
+                            charName = "???";
+                        } else {
+                            charName = character.getTagName();
+                        }
+
+                        strValue += String.format("<a href='%s://%d'>%s (%d)</a><br>", scheme, id, charName, id);
+                    } else {
+                        strValue += String.format("<a href='%s://%d'>%d</a>, ", scheme, id, displayId);
+                    }
                 }
 
                 value = strValue.substring(0, strValue.length() - 2);
+
+                if (!frameList && !expand) {
+                    value = value + " <a href='expand://all'>+</a>";
+                }
             }
 
             result += "<td>" + value + "</td>";
@@ -148,23 +204,56 @@ public class TagInfoPanel extends JPanel {
         result += "</table></body></html>";
 
         editorPane.setText(result);
+    }
 
-        Font font = UIManager.getFont("Label.font");
+    private void buildHtmlContent() {
+        updateHtmlContent(false);
+
+        Font font = UIManager.getFont("Table.font");
         String bodyRule = "body { font-family: " + font.getFamily() + ";"
                 + " font-size: " + font.getSize() + "pt;"
                 + "}"
                 + " table {"
-                + " width:100%;"
-                + " color:#053E6A;"
-                + " padding:1px;"
-                + "}"
-                + "td { border: 1px solid #e4e4e4; }"
-                + "html { border: 1px solid #789AC4; }";
+                + " width:100%;";
+
+        if (View.isOceanic()) {
+            bodyRule += "color:#053E6A;"
+                    + "padding:1px;"
+                    + "}"
+                    + "td { border: 1px solid #e4e4e4; }"
+                    + "html { border: 1px solid #789AC4; }";
+        } else {
+            Color bgColor = UIManager.getColor("Table.background");
+            int light = (bgColor.getRed() + bgColor.getGreen() + bgColor.getBlue()) / 3;
+            boolean nightMode = light <= 128;
+
+            Color linkColor = Color.blue;
+            if (nightMode) {
+                linkColor = new Color(0x88, 0x88, 0xff);
+            }
+
+            bodyRule += "background-color: " + getUIColorToHex("Table.background") + ";"
+                    + "color:" + getUIColorToHex("Table.foreground") + ";"
+                    + "padding:1px;"
+                    + "}"
+                    + "td { border: 1px solid " + getUIColorToHex("Table.gridColor") + "; }"
+                    + "html { border: 1px solid " + getUIColorToHex("Table.gridColor") + "; }"
+                    + "a {color: " + getColorToHex(linkColor) + "}";
+        }
 
         ((HTMLDocument) editorPane.getDocument()).getStyleSheet().addRule(bodyRule);
 
         editorPane.setOpaque(false);
         editorPane.setBorder(null);
         editorPane.setEditable(false);
+    }
+
+    private static String getColorToHex(Color c) {
+        return String.format("#%02x%02x%02x", c.getRed(), c.getGreen(), c.getBlue());
+    }
+
+    private static String getUIColorToHex(String name) {
+        Color c = UIManager.getColor(name);
+        return getColorToHex(c);
     }
 }

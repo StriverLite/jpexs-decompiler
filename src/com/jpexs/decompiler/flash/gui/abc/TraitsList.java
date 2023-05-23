@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS
+ *  Copyright (C) 2010-2023 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -17,6 +17,7 @@
 package com.jpexs.decompiler.flash.gui.abc;
 
 import com.jpexs.decompiler.flash.abc.ABC;
+import com.jpexs.decompiler.flash.gui.View;
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
 import java.awt.AlphaComposite;
 import java.awt.Color;
@@ -57,7 +58,9 @@ public class TraitsList extends JList<Object> implements ListSelectionListener {
         this.abcPanel = abcPanel;
         setCellRenderer(new IconListRenderer());
         //setUI(new BasicListUI());
-        setBackground(Color.white);
+        if (View.isOceanic()) {
+            setBackground(Color.white);
+        }
     }
 
     public void clearAbc() {
@@ -72,6 +75,9 @@ public class TraitsList extends JList<Object> implements ListSelectionListener {
     }
 
     public void setClassIndex(int classIndex, int scriptIndex) {
+        if (abc == null) {
+            return;
+        }
         if (classIndex >= abc.instance_info.size()) {
             return;
         }

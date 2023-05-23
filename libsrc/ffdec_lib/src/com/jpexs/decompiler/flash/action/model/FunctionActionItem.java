@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2023 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -51,6 +51,12 @@ import java.util.Set;
  */
 public class FunctionActionItem extends ActionItem implements BranchStackResistant {
 
+    public static final boolean DECOMPILE_GET_SET = true;
+
+    public boolean isGetter = false;
+
+    public boolean isSetter = false;
+
     public List<GraphTargetItem> actions;
 
     public List<String> constants;
@@ -62,6 +68,8 @@ public class FunctionActionItem extends ActionItem implements BranchStackResista
     public Map<Integer, String> regNames;
 
     public GraphTargetItem calculatedFunctionName;
+
+    public boolean hasEval = false;
 
     private int regStart;
 
@@ -85,11 +93,20 @@ public class FunctionActionItem extends ActionItem implements BranchStackResista
         visitor.visitAll(actions);
     }
 
+    @Override
+    public void visitNoBlock(GraphTargetVisitorInterface visitor) {
+
+    }
+
+    public void addVariable(VariableActionItem variable) {
+        variables.add(variable);
+    }
+
     public FunctionActionItem() {
         super(null, null, PRECEDENCE_PRIMARY);
     }
 
-    public FunctionActionItem(GraphSourceItem instruction, GraphSourceItem lineStartIns, String functionName, List<String> paramNames, Map<Integer, String> regNames, List<GraphTargetItem> actions, List<String> constants, int regStart, List<VariableActionItem> variables, List<FunctionActionItem> innerFunctions) {
+    public FunctionActionItem(GraphSourceItem instruction, GraphSourceItem lineStartIns, String functionName, List<String> paramNames, Map<Integer, String> regNames, List<GraphTargetItem> actions, List<String> constants, int regStart, List<VariableActionItem> variables, List<FunctionActionItem> innerFunctions, boolean hasEval) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY);
         this.actions = actions;
         this.constants = constants;
@@ -99,6 +116,7 @@ public class FunctionActionItem extends ActionItem implements BranchStackResista
         this.regStart = regStart;
         this.variables = variables;
         this.innerFunctions = innerFunctions;
+        this.hasEval = hasEval;
     }
 
     @Override
@@ -110,21 +128,49 @@ public class FunctionActionItem extends ActionItem implements BranchStackResista
             srcData.localName = n;
             srcData.declaration = true;
         }
+
         writer.append("function");
+        if (DECOMPILE_GET_SET) {
+            if (isGetter) {
+                writer.append(" get");
+            }
+            if (isSetter) {
+                writer.append(" set");
+            }
+        }
         if (calculatedFunctionName != null) {
             writer.append(" ");
             String fname = calculatedFunctionName.toStringNoQuotes(localData);
+            if (DECOMPILE_GET_SET) {
+                if (isGetter && fname.startsWith("__get__")) {
+                    fname = fname.substring(7);
+                }
+                if (isSetter && fname.startsWith("__set__")) {
+                    fname = fname.substring(7);
+                }
+            }
+
             if (!IdentifiersDeobfuscation.isValidName(false, fname)) {
                 IdentifiersDeobfuscation.appendObfuscatedIdentifier(fname, writer);
             } else {
-                calculatedFunctionName.appendToNoQuotes(writer, localData);
+                writer.append(fname);
+                //calculatedFunctionName.appendToNoQuotes(writer, localData);
             }
         } else if (!functionName.isEmpty()) {
+            String fname = functionName;
+            if (DECOMPILE_GET_SET) {
+                if (isGetter && fname.startsWith("__get__")) {
+                    fname = fname.substring(7);
+                }
+                if (isSetter && fname.startsWith("__set__")) {
+                    fname = fname.substring(7);
+                }
+            }
             writer.append(" ");
-            if (!IdentifiersDeobfuscation.isValidName(false, functionName)) {
-                IdentifiersDeobfuscation.appendObfuscatedIdentifier(functionName, writer);
+            if (!IdentifiersDeobfuscation.isValidName(false, fname)) {
+                IdentifiersDeobfuscation.appendObfuscatedIdentifier(fname, writer);
             } else {
-                writer.append(functionName);
+                writer.append(fname);
             }
         }
         writer.spaceBeforeCallParenthesies(paramNames.size());
@@ -179,6 +225,8 @@ public class FunctionActionItem extends ActionItem implements BranchStackResista
         return false;
     }
 
+    /*
+    NOT COMPILE TIME! This causes problems in simplifyExpressions, etc.
     @Override
     public boolean isCompileTime(Set<GraphTargetItem> dependencies) {
         for (GraphTargetItem a : actions) {
@@ -191,7 +239,7 @@ public class FunctionActionItem extends ActionItem implements BranchStackResista
             }
         }
         return true;
-    }
+    }*/
 
     @Override
     public Object getResult() {
@@ -236,13 +284,15 @@ public class FunctionActionItem extends ActionItem implements BranchStackResista
     @Override
     public List<GraphSourceItem> toSource(SourceGeneratorLocalData localData, SourceGenerator generator) throws CompilationException {
 
+        ActionSourceGenerator asGenerator = (ActionSourceGenerator) generator;
+        String charset = asGenerator.getCharset();  
+        
         Set<String> usedNames = new HashSet<>();
         for (VariableActionItem v : variables) {
             usedNames.add(v.getVariableName());
         }
 
         List<GraphSourceItem> ret = new ArrayList<>();
-        ActionSourceGenerator asGenerator = (ActionSourceGenerator) generator;
         List<Integer> paramRegs = new ArrayList<>();
         SourceGeneratorLocalData localDataCopy = Helper.deepCopy(localData);
         localDataCopy.inFunction++;
@@ -253,7 +303,7 @@ public class FunctionActionItem extends ActionItem implements BranchStackResista
         boolean preloadThisFlag = false;
         boolean preloadGlobalFlag = false;
 
-        boolean suppressParentFlag = false;
+        boolean suppressSuperFlag = false;
         boolean suppressArgumentsFlag = false;
         boolean suppressThisFlag = false;
 
@@ -279,7 +329,10 @@ public class FunctionActionItem extends ActionItem implements BranchStackResista
             preloadSuperFlag = true;
             needsFun2 = true;
             registerNames.add("super");
+        } else {
+            suppressSuperFlag = true;
         }
+
         if (usedNames.contains("_root")) {
             preloadRootFlag = true;
             needsFun2 = true;
@@ -289,8 +342,6 @@ public class FunctionActionItem extends ActionItem implements BranchStackResista
             preloadParentFlag = true;
             needsFun2 = true;
             registerNames.add("_parent");
-        } else {
-            suppressParentFlag = true;
         }
         if (usedNames.contains("_global")) {
             needsFun2 = true;
@@ -344,7 +395,8 @@ public class FunctionActionItem extends ActionItem implements BranchStackResista
                 String varName = v.getVariableName();
                 GraphTargetItem stored = v.getStoreValue();
                 if (needsFun2) {
-                    if (v.isDefinition() && !registerNames.contains(varName) && !deeplyUsedVariableNames.contains(varName)) {
+                    if (v.isDefinition() && !registerNames.contains(varName) && !deeplyUsedVariableNames.contains(varName)
+                            && !hasEval) {
                         registerNames.add(varName);
                     }
                 }
@@ -389,19 +441,19 @@ public class FunctionActionItem extends ActionItem implements BranchStackResista
         }
         int len = Action.actionsToBytes(asGenerator.toActionList(ret), false, SWF.DEFAULT_VERSION).length;
         if (!needsFun2 && paramNames.isEmpty()) {
-            ret.add(0, new ActionDefineFunction(functionName, paramNames, len, SWF.DEFAULT_VERSION));
+            ret.add(0, new ActionDefineFunction(functionName, paramNames, len, SWF.DEFAULT_VERSION, charset));
         } else {
             ret.add(0, new ActionDefineFunction2(functionName,
                     preloadParentFlag,
                     preloadRootFlag,
-                    suppressParentFlag,
+                    suppressSuperFlag,
                     preloadSuperFlag,
                     suppressArgumentsFlag,
                     preloadArgumentsFlag,
                     suppressThisFlag,
                     preloadThisFlag,
                     preloadGlobalFlag,
-                    regCount, len, SWF.DEFAULT_VERSION, paramNames, paramRegs));
+                    regCount, len, SWF.DEFAULT_VERSION, paramNames, paramRegs, charset));
         }
 
         return ret;

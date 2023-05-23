@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS
+ *  Copyright (C) 2010-2023 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -208,7 +208,9 @@ public class DumpViewPanel extends JPanel {
     }
 
     private void doSearch() {
-        filterField.setBackground(Color.white);
+        if (View.isOceanic()) {
+            filterField.setBackground(Color.white);
+        }
 
         String text = filterField.getText();
         if (text.length() == 0) {

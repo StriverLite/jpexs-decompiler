@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2023 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,10 +12,12 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash;
 
 import com.jpexs.decompiler.flash.abc.RenameType;
+import com.jpexs.decompiler.flash.configuration.Configuration;
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
 import com.jpexs.decompiler.flash.tags.DefineSpriteTag;
 import com.jpexs.decompiler.flash.tags.Tag;
@@ -45,9 +47,9 @@ public class IdentifiersDeobfuscation {
 
     private final HashMap<String, Integer> typeCounts = new HashMap<>();
 
-    private static final Cache<String, String> as2NameCache = Cache.getInstance(false, true, "as2_ident");
+    private static final Cache<String, String> as2NameCache = Cache.getInstance(false, true, "as2_ident", true);
 
-    private static final Cache<String, String> as3NameCache = Cache.getInstance(false, true, "as3_ident");
+    private static final Cache<String, String> as3NameCache = Cache.getInstance(false, true, "as3_ident", true);
 
     public static final String VALID_FIRST_CHARACTERS = "\\p{Lu}\\p{Ll}\\p{Lt}\\p{Lm}\\p{Lo}_$";
 
@@ -69,19 +71,31 @@ public class IdentifiersDeobfuscation {
     public static final String[] reservedWordsAS2 = {
         // is "add" really a keyword? documentation says yes, but I can create "add" variable in CS6...
         // "add",
-        "and", "break", "case", "catch", "class", "continue", "default", "delete", "do", "dynamic", "else",
-        "eq", "extends", "false", "finally", "for", "function", "ge", "get", "gt", "if", "ifFrameLoaded", "implements",
+        "and", "break", "case", "catch", "class", "continue", "default", "delete", "do", "dynamic",
+        "each", //can be in variable definition
+        "else",
+        "eq", "extends",
+        "false", //can be in variable definition
+        "finally", "for", "function", "ge",
+        "get", //can be in variable definition
+        "gt", "if", "ifFrameLoaded", "implements",
         "import", "in", "instanceof", "interface", "intrinsic", "le",
         // is "it" really a keyword? documentation says yes, but I can create "it" variable in CS6...
         // "it",
-        "ne", "new", "not", "null", "on", "onClipEvent",
-        "or", "private", "public", "return", "set", "static",
+        "ne", "new", "not",
+        "null", //can be in variable definition
+        "on", "onClipEvent",
+        "or", "private", "public", "return",
+        "set", //can be in variable definition        
+        "static",
         //allow as variable:
         //"super",
         "switch", "tellTarget",
         //allow as variable:
         //"this",
-        "throw", "try",
+        "throw",
+        "true", //can be in variable definition 
+        "try",
         "typeof", "undefined", "var", "void", "while", "with"
     };
 
@@ -208,7 +222,7 @@ public class IdentifiersDeobfuscation {
     }
 
     public String deobfuscateNameWithPackage(boolean as3, String n, HashMap<DottedChain, DottedChain> namesMap, RenameType renameType, Map<DottedChain, DottedChain> selected) {
-        DottedChain nChain = DottedChain.parseWithSuffix(n);
+        DottedChain nChain = DottedChain.parseNoSuffix(n);
         DottedChain pkg = nChain.getWithoutLast();
         String name = nChain.getLast();
 
@@ -326,7 +340,7 @@ public class IdentifiersDeobfuscation {
             usageType = "name";
         }
 
-        DottedChain sChain = DottedChain.parseWithSuffix(s);
+        DottedChain sChain = DottedChain.parseNoSuffix(s);
         if (selected != null) {
             if (selected.containsKey(sChain)) {
                 return selected.get(sChain).toRawString();
@@ -352,14 +366,14 @@ public class IdentifiersDeobfuscation {
                         ret = fooString(firstUppercase, rndSize);
                         if (allVariableNamesStr.contains(ret)
                                 || isReservedWord(ret, as3)
-                                || namesMap.containsValue(DottedChain.parseWithSuffix(ret))) {
+                                || namesMap.containsValue(DottedChain.parseNoSuffix(ret))) {
                             found = true;
                             rndSize++;
                         }
                     }
                 } while (found);
 
-                namesMap.put(DottedChain.parseWithSuffix(s), DottedChain.parseWithSuffix(ret));
+                namesMap.put(DottedChain.parseNoSuffix(s), DottedChain.parseNoSuffix(ret));
                 return ret;
             }
         }
@@ -419,8 +433,6 @@ public class IdentifiersDeobfuscation {
                 writer.append("\\n");
             } else if (c == '\r') {
                 writer.append("\\r");
-            } else if (c == '\t') {
-                writer.append("\\t");
             } else if (c == '\b') {
                 writer.append("\\b");
             } else if (c == '\t') {
@@ -434,6 +446,18 @@ public class IdentifiersDeobfuscation {
             } else if (c < 32) {
                 writer.append("\\x").append(Helper.byteToHex((byte) c));
             } else {
+                int num = 1;
+                for (int j = i + 1; j < s.length(); j++) {
+                    if (s.charAt(j) == c) {
+                        num++;
+                    } else {
+                        break;
+                    }
+                }
+                if (num > Configuration.limitSameChars.get()) {
+                    writer.append("\\{").append(num).append("}");
+                    i += num - 1;
+                }
                 writer.append(c);
             }
         }
@@ -453,8 +477,6 @@ public class IdentifiersDeobfuscation {
                 ret.append("\\t");
             } else if (c == '\b') {
                 ret.append("\\b");
-            } else if (c == '\t') {
-                ret.append("\\t");
             } else if (c == '\f') {
                 ret.append("\\f");
             } else if (c == '\\') {
@@ -464,6 +486,18 @@ public class IdentifiersDeobfuscation {
             } else if (c < 32) {
                 ret.append("\\x").append(Helper.byteToHex((byte) c));
             } else {
+                int num = 1;
+                for (int j = i + 1; j < s.length(); j++) {
+                    if (s.charAt(j) == c) {
+                        num++;
+                    } else {
+                        break;
+                    }
+                }
+                if (num > Configuration.limitSameChars.get()) {
+                    ret.append("\\{").append(num).append("}");
+                    i += num - 1;
+                }
                 ret.append(c);
             }
         }

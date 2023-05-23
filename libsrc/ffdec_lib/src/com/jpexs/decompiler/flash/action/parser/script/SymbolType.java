@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2023 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -159,11 +159,9 @@ public enum SymbolType {
     NUMBER_OP(GraphTargetItem.PRECEDENCE_PRIMARY, false),
     STRING_OP(GraphTargetItem.PRECEDENCE_PRIMARY, false),
     IFFRAMELOADED,
-    INFINITY(GraphTargetItem.PRECEDENCE_PRIMARY, false),
     EVAL(GraphTargetItem.PRECEDENCE_PRIMARY, false),
     UNDEFINED(GraphTargetItem.PRECEDENCE_PRIMARY, false),
     NEWLINE(GraphTargetItem.PRECEDENCE_PRIMARY, false),
-    NAN(GraphTargetItem.PRECEDENCE_PRIMARY, false),
     GETVERSION(GraphTargetItem.PRECEDENCE_PRIMARY, false),
     CALL(GraphTargetItem.PRECEDENCE_PRIMARY, false),
     LOADMOVIENUM(GraphTargetItem.PRECEDENCE_PRIMARY, false),
@@ -175,8 +173,7 @@ public enum SymbolType {
     UNLOADMOVIE(GraphTargetItem.PRECEDENCE_PRIMARY, false),
     UNLOADMOVIENUM(GraphTargetItem.PRECEDENCE_PRIMARY, false),
     FSCOMMAND(GraphTargetItem.PRECEDENCE_PRIMARY, false),
-    PREPROCESSOR(GraphTargetItem.PRECEDENCE_PRIMARY, false),
-    PATH(GraphTargetItem.PRECEDENCE_PRIMARY, false);
+    PREPROCESSOR(GraphTargetItem.PRECEDENCE_PRIMARY, false);
 
     private int precedence = GraphTargetItem.NOPRECEDENCE;
 

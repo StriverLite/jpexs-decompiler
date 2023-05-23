@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2023 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -18,6 +18,8 @@ package com.jpexs.decompiler.flash.action.model.operations;
 
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
 import com.jpexs.decompiler.flash.action.Action;
+import com.jpexs.decompiler.flash.action.model.CompoundableBinaryOpAs12;
+import com.jpexs.decompiler.flash.action.swf4.ActionAdd;
 import com.jpexs.decompiler.flash.action.swf5.ActionAdd2;
 import com.jpexs.decompiler.flash.ecma.EcmaScript;
 import com.jpexs.decompiler.flash.ecma.EcmaType;
@@ -37,7 +39,7 @@ import java.util.List;
  *
  * @author JPEXS
  */
-public class AddActionItem extends BinaryOpItem implements CompoundableBinaryOp {
+public class AddActionItem extends BinaryOpItem implements CompoundableBinaryOpAs12 {
 
     boolean version2;
 
@@ -85,7 +87,7 @@ public class AddActionItem extends BinaryOpItem implements CompoundableBinaryOp 
 
     @Override
     public List<GraphSourceItem> toSource(SourceGeneratorLocalData localData, SourceGenerator generator) throws CompilationException {
-        return toSourceMerge(localData, generator, leftSide, rightSide, new ActionAdd2());
+        return toSourceMerge(localData, generator, leftSide, rightSide, version2 ? new ActionAdd2() : new ActionAdd());
     }
 
     @Override

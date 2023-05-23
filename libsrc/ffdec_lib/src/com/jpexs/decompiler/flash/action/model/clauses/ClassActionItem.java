@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2023 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -16,6 +16,7 @@
  */
 package com.jpexs.decompiler.flash.action.model.clauses;
 
+import com.jpexs.decompiler.flash.IdentifiersDeobfuscation;
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
 import com.jpexs.decompiler.flash.action.Action;
 import com.jpexs.decompiler.flash.action.model.ActionItem;
@@ -118,31 +119,37 @@ public class ClassActionItem extends ActionItem implements Block {
             GetMemberActionItem gm = (GetMemberActionItem) item;
             if (isThis(gm.object)) {
                 ret.add(gm.memberName);
-            } else {
-                detectUnitializedVars(gm.object, ret);
             }
         }
         if (item instanceof SetMemberActionItem) {
             SetMemberActionItem sm = (SetMemberActionItem) item;
             if (isThis(sm.object)) {
                 ret.add(sm.objectName);
-            } else {
-                detectUnitializedVars(sm.object, ret);
             }
         }
 
-        if (item instanceof Block) {
-            Block bl = (Block) item;
-            for (List<GraphTargetItem> list : bl.getSubs()) {
-                detectUnitializedVars(list, ret);
-            }
-        }
         detectUnitializedVars(item.getAllSubItems(), ret);
     }
 
     private void detectUnitializedVars(List<GraphTargetItem> items, List<GraphTargetItem> ret) {
         for (GraphTargetItem it : items) {
             detectUnitializedVars(it, ret);
+        }
+    }
+
+    private void makePrintObfuscated(GraphTargetItem item) {
+        if (item == null) {
+            return;
+        }
+        GraphTargetItem it = item;
+        while (it instanceof GetMemberActionItem) {
+            GetMemberActionItem m = (GetMemberActionItem) it;
+            m.printObfuscatedMemberName = true;
+            it = m.object;
+        }
+        if (it instanceof GetVariableActionItem) {
+            GetVariableActionItem gv = (GetVariableActionItem) it;
+            gv.printObfuscatedName = true;
         }
     }
 
@@ -156,7 +163,12 @@ public class ClassActionItem extends ActionItem implements Block {
         if (clsName instanceof GetVariableActionItem) {
             ((GetVariableActionItem) clsName).printObfuscatedName = true;
         }
-        writer.startClass(className.toStringNoQuotes(localData));
+
+        makePrintObfuscated(extendsOp);
+        for (GraphTargetItem im : implementsOp) {
+            makePrintObfuscated(im);
+        }
+
         writer.append("class ");
         className.toStringNoQuotes(writer, localData);
         if (extendsOp != null) {
@@ -175,6 +187,7 @@ public class ClassActionItem extends ActionItem implements Block {
             }
         }
         writer.startBlock();
+        writer.startClass(className.toStringNoQuotes(localData));        
 
         /*if (constructor != null) {
             constructor.toString(writer, localData).newLine();
@@ -207,7 +220,7 @@ public class ClassActionItem extends ActionItem implements Block {
                     item.getValue().toString(writer, localData).newLine();
                 } else {
                     writer.append("var ");
-                    item.getKey().toStringNoQuotes(writer, localData);
+                    writer.append(IdentifiersDeobfuscation.printIdentifier(false, item.getKey().toStringNoQuotes(localData)));
                     writer.append(" = ");
                     item.getValue().toString(writer, localData);
                     writer.append(";").newLine();
@@ -219,8 +232,8 @@ public class ClassActionItem extends ActionItem implements Block {
             writer.append(v);
             writer.append(";").newLine();
         }
-        writer.endBlock();
         writer.endClass();
+        writer.endBlock();
         return writer;
     }
 

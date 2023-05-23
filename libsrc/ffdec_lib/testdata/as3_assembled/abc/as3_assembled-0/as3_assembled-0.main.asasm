@@ -29,5 +29,7 @@ program
  #include "tests/TestSwitchGoto.script.asasm"
  #include "tests/TestTryWhile.script.asasm"
  #include "tests/TestPushWhile.script.asasm"
+ #include "tests/TestActivationProps.script.asasm"
+ #include "tests/TestSwapAssignment.script.asasm"
  ; place to add next
 end ; program

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2023 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -16,6 +16,7 @@
  */
 package com.jpexs.helpers;
 
+import com.jpexs.decompiler.flash.configuration.Configuration;
 import com.jpexs.decompiler.flash.helpers.Freed;
 import java.io.File;
 import java.io.IOException;
@@ -26,8 +27,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.WeakHashMap;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  *
@@ -38,6 +40,9 @@ import java.util.WeakHashMap;
 public class Cache<K, V> implements Freed {
 
     private Map<K, V> cache;
+    private Map<K, Long> lastAccessed;
+
+    private static final Object instancesLock = new Object();
 
     private static final List<WeakReference<Cache>> instances = new ArrayList<>();
 
@@ -51,37 +56,70 @@ public class Cache<K, V> implements Freed {
 
     private final String name;
 
+    private final boolean temporary;
+
+    private static final long CLEAN_INTERVAL = 5 * 1000; //5 seconds
+
+    private static Thread oldCleaner = null;
+
     static {
         Runtime.getRuntime().addShutdownHook(new Thread() {
 
             @Override
             public void run() {
-                for (WeakReference<Cache> cw : instances) {
-                    Cache c = cw.get();
-                    if (c != null) {
-                        c.clear();
-                        c.free();
+                synchronized (instancesLock) {
+                    for (WeakReference<Cache> cw : instances) {
+                        Cache c = cw.get();
+                        if (c != null) {
+                            c.clear();
+                            c.free();
+                        }
                     }
                 }
             }
-
         });
     }
 
-    public static <K, V> Cache<K, V> getInstance(boolean weak, boolean memoryOnly, String name) {
-        Cache<K, V> instance = new Cache<>(weak, memoryOnly, name);
-        instances.add(new WeakReference<>(instance));
+    public static <K, V> Cache<K, V> getInstance(boolean weak, boolean memoryOnly, String name, boolean temporary) {
+        if (oldCleaner == null) {
+            oldCleaner = new Thread("Old cache cleaner") {
+                @Override
+                public void run() {
+                    while (!Thread.interrupted()) {
+                        try {
+                            Thread.sleep(CLEAN_INTERVAL);
+                        } catch (InterruptedException ex) {
+                            return;
+                        }
+                        try {
+                            clearAllOld();
+                        } catch (Exception cme) {
+                            Logger.getLogger(Cache.class.getSimpleName()).log(Level.SEVERE, "Error during clearing cache thread", cme);
+                        }
+                    }
+                }
+            };
+            oldCleaner.setDaemon(true);
+            oldCleaner.setPriority(Thread.MIN_PRIORITY);
+            oldCleaner.start();
+        }
+        Cache<K, V> instance = new Cache<>(weak, memoryOnly, name, temporary);
+        synchronized (instancesLock) {
+            instances.add(new WeakReference<>(instance));
+        }
         return instance;
     }
 
     private static int storageType = STORAGE_FILES;
 
     public static void clearAll() {
-        for (WeakReference<Cache> cw : instances) {
-            Cache c = cw.get();
-            if (c != null) {
-                c.clear();
-                c.initCache();
+        synchronized (instancesLock) {
+            for (WeakReference<Cache> cw : instances) {
+                Cache c = cw.get();
+                if (c != null) {
+                    c.clear();
+                    c.initCache();
+                }
             }
         }
     }
@@ -130,41 +168,53 @@ public class Cache<K, V> implements Freed {
         if (this.cache instanceof Freed) {
             ((Freed) this.cache).free();
         }
+        this.lastAccessed = new WeakHashMap<>();
         this.cache = newCache;
     }
 
-    private Cache(boolean weak, boolean memoryOnly, String name) {
+    private Cache(boolean weak, boolean memoryOnly, String name, boolean temporary) {
         this.weak = weak;
         this.name = name;
         this.memoryOnly = memoryOnly;
+        this.temporary = temporary;
         initCache();
     }
 
     public synchronized boolean contains(K key) {
-        return cache.containsKey(key);
+        boolean ret = cache.containsKey(key);
+        if (ret) {
+            lastAccessed.put(key, System.currentTimeMillis());
+        }
+        return ret;
     }
 
     public synchronized void clear() {
         cache.clear();
+        lastAccessed.clear();
     }
 
     public synchronized void remove(K key) {
         if (cache.containsKey(key)) {
             cache.remove(key);
         }
+        if (lastAccessed.containsKey(key)) {
+            lastAccessed.remove(key);
+        }
     }
 
     public synchronized V get(K key) {
+        lastAccessed.put(key, System.currentTimeMillis());
         return cache.get(key);
     }
 
     public synchronized void put(K key, V value) {
         cache.put(key, value);
+        lastAccessed.put(key, System.currentTimeMillis());
     }
 
     @Override
     public boolean isFreeing() {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        throw new UnsupportedOperationException("Not supported yet.");
     }
 
     @Override
@@ -178,5 +228,40 @@ public class Cache<K, V> implements Freed {
         Set<K> ret = new HashSet<>();
         ret.addAll(cache.keySet());
         return ret;
+    }
+
+    private synchronized int clearOld() {
+        long currentTime = System.currentTimeMillis();
+        Set<K> keys = new HashSet<>(lastAccessed.keySet());
+        int temporaryThreshold = Configuration.maxCachedTime.get();
+        if (temporaryThreshold == 0) {
+            return 0;
+        }
+        int num = 0;
+        for (K key : keys) {
+            long time = lastAccessed.get(key);
+            if (time < currentTime - temporaryThreshold) {
+                remove(key);
+                num++;
+            }
+        }
+        return num;
+    }
+
+    private static void clearAllOld() {
+        int num = 0;
+        synchronized (instancesLock) {
+            for (WeakReference<Cache> cw : instances) {
+                Cache c = cw.get();
+                if (c != null) {
+                    if (c.temporary) {
+                        num += c.clearOld();
+                    }
+                }
+            }
+        }
+        if (num > 0) {
+            System.gc();
+        }
     }
 }

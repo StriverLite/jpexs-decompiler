@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2023 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -16,6 +16,7 @@
  */
 package com.jpexs.decompiler.flash.action.model;
 
+import com.jpexs.decompiler.flash.IdentifiersDeobfuscation;
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
 import com.jpexs.decompiler.flash.action.swf5.ActionNewMethod;
 import com.jpexs.decompiler.flash.ecma.Undefined;
@@ -72,16 +73,21 @@ public class NewMethodActionItem extends ActionItem {
         }
         scriptObject.toString(writer, localData);
         if (!blankMethod) {
-            writer.append(".");
             if (methodName instanceof DirectValueActionItem) {
                 if (((DirectValueActionItem) methodName).value == Undefined.INSTANCE) {
-                } else if (((DirectValueActionItem) methodName).value instanceof String) {
+                } else if ((((DirectValueActionItem) methodName).value instanceof String)
+                        && (IdentifiersDeobfuscation.isValidName(false, (String) ((DirectValueActionItem) methodName).value))) {
+                    writer.append(".");
                     ((DirectValueActionItem) methodName).toStringNoQuotes(writer, localData);
                 } else {
+                    writer.append("[");
                     methodName.toString(writer, localData);
+                    writer.append("]");
                 }
             } else {
+                writer.append("[");
                 methodName.toString(writer, localData);
+                writer.append("]");
             }
         }
         writer.spaceBeforeCallParenthesies(arguments.size());

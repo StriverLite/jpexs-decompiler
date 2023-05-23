@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2023 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,32 +12,50 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.tags.gfx;
 
+import com.jpexs.decompiler.flash.SWF;
 import com.jpexs.decompiler.flash.SWFInputStream;
 import com.jpexs.decompiler.flash.SWFOutputStream;
-import com.jpexs.decompiler.flash.tags.Tag;
+import com.jpexs.decompiler.flash.gfx.TgaSupport;
+import com.jpexs.decompiler.flash.helpers.ImageHelper;
+import com.jpexs.decompiler.flash.tags.base.ImageTag;
+import com.jpexs.decompiler.flash.tags.enums.ImageFormat;
+import com.jpexs.decompiler.flash.types.annotations.HideInRawEdit;
 import com.jpexs.helpers.ByteArrayRange;
+import com.jpexs.helpers.SerializableImage;
+import java.awt.Dimension;
+import java.awt.Graphics;
+import java.awt.Image;
+import java.awt.image.BufferedImage;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Objects;
+import javax.imageio.ImageIO;
+import net.npe.dds.DDSReader;
 
 /**
  *
  * @author JPEXS
  */
-public class DefineExternalImage extends Tag {
+public class DefineExternalImage extends ImageTag {
 
     public static final int ID = 1001;
 
     public static final String NAME = "DefineExternalImage";
-
-    public int characterId;
 
     public int bitmapFormat;
 
     public int targetWidth;
 
     public int targetHeight;
+
+    public String exportName;
 
     public String fileName;
 
@@ -47,6 +65,12 @@ public class DefineExternalImage extends Tag {
 
     public static final int BITMAP_FORMAT_DDS = 2;
 
+    @HideInRawEdit
+    private SerializableImage serImage;
+
+    @HideInRawEdit
+    private String cachedImageFilename = null;
+
     /**
      * Gets data bytes
      *
@@ -55,10 +79,11 @@ public class DefineExternalImage extends Tag {
      */
     @Override
     public void getData(SWFOutputStream sos) throws IOException {
-        sos.writeUI16(characterId);
+        sos.writeUI16(characterID);
         sos.writeUI16(bitmapFormat);
         sos.writeUI16(targetWidth);
         sos.writeUI16(targetHeight);
+        sos.writeNetString(exportName);
         sos.writeNetString(fileName);
     }
 
@@ -74,12 +99,124 @@ public class DefineExternalImage extends Tag {
         readData(sis, data, 0, false, false, false);
     }
 
+    public DefineExternalImage(SWF swf) {
+        super(swf, ID, NAME, null);
+        exportName = "";
+        fileName = "";
+        targetWidth = 1;
+        targetHeight = 1;
+        bitmapFormat = BITMAP_FORMAT_DDS;
+        createFailedImage();
+    }
+
     @Override
     public final void readData(SWFInputStream sis, ByteArrayRange data, int level, boolean parallel, boolean skipUnusualTags, boolean lazy) throws IOException {
-        characterId = sis.readUI16("characterId");
+        characterID = sis.readUI16("characterID");
         bitmapFormat = sis.readUI16("bitmapFormat");
         targetWidth = sis.readUI16("targetWidth");
         targetHeight = sis.readUI16("targetHeight");
+        exportName = sis.readNetString("exportName");
         fileName = sis.readNetString("fileName");
+    }
+
+    private void createFailedImage() {
+        if (targetWidth <= 0 || targetHeight <= 0) {
+            serImage = new SerializableImage(1, 1, BufferedImage.TYPE_4BYTE_ABGR_PRE);
+            serImage.fillTransparent();
+            return;
+        }
+
+        serImage = new SerializableImage(targetWidth, targetHeight, BufferedImage.TYPE_INT_ARGB_PRE);
+        Graphics g = serImage.getGraphics();
+        g.setColor(SWF.ERROR_COLOR);
+        g.fillRect(0, 0, targetWidth, targetHeight);
+        cachedImageFilename = null;
+    }
+
+    @Override
+    public void setImage(byte[] data) throws IOException {
+        serImage = new SerializableImage(ImageHelper.read(data));
+        clearCache();
+        setModified(true);
+    }
+
+    @Override
+    public ImageFormat getImageFormat() {
+        return ImageFormat.PNG;
+    }
+
+    @Override
+    public ImageFormat getOriginalImageFormat() {
+        return ImageFormat.PNG;
+    }
+
+    @Override
+    public InputStream getOriginalImageData() {
+        return null;
+    }
+
+    @Override
+    protected SerializableImage getImage() {
+        initImage();
+        return serImage;
+    }
+
+    @Override
+    public Dimension getImageDimension() {
+        return new Dimension(targetWidth, targetHeight);
+    }
+
+    private void initImage() {
+        if (!Objects.equals(cachedImageFilename, fileName)
+                || (serImage != null && (serImage.getWidth() != targetWidth || serImage.getHeight() != targetHeight))) {
+
+            if (targetWidth <= 0 || targetHeight <= 0) {
+                serImage = new SerializableImage(1, 1, BufferedImage.TYPE_4BYTE_ABGR_PRE);
+                serImage.fillTransparent();
+                return;
+            }
+
+            if (bitmapFormat == BITMAP_FORMAT_TGA) {
+                Path imagePath = getSwf().getFile() == null ? null : Paths.get(getSwf().getFile()).getParent().resolve(Paths.get(fileName));
+                if (imagePath != null && imagePath.toFile().exists()) {
+                    try {
+                        TgaSupport.init();
+                        BufferedImage bufImage = ImageIO.read(imagePath.toFile());
+                        Image scaled = bufImage.getScaledInstance(targetWidth, targetHeight, Image.SCALE_DEFAULT);
+                        bufImage = new BufferedImage(targetWidth, targetHeight, BufferedImage.TYPE_INT_ARGB);
+                        bufImage.getGraphics().drawImage(scaled, 0, 0, null);
+                        serImage = new SerializableImage(bufImage);
+                        cachedImageFilename = fileName;
+                    } catch (IOException ex) {
+                        createFailedImage();
+                    }
+                } else {
+                    createFailedImage();
+                }
+            } else {
+                Path imagePath = getSwf().getFile() == null ? null : Paths.get(getSwf().getFile()).getParent().resolve(Paths.get(fileName));
+                if (imagePath != null && imagePath.toFile().exists()) {
+                    try {
+                        byte[] imageData = Files.readAllBytes(imagePath);
+                        int[] pixels = DDSReader.read(imageData, DDSReader.ARGB, 0);
+                        BufferedImage bufImage = new BufferedImage(DDSReader.getWidth(imageData), DDSReader.getHeight(imageData), BufferedImage.TYPE_INT_ARGB);
+                        bufImage.getRaster().setDataElements(0, 0, bufImage.getWidth(), bufImage.getHeight(), pixels);
+                        Image scaled = bufImage.getScaledInstance(targetWidth, targetHeight, Image.SCALE_DEFAULT);
+                        bufImage = new BufferedImage(targetWidth, targetHeight, BufferedImage.TYPE_INT_ARGB);
+                        bufImage.getGraphics().drawImage(scaled, 0, 0, null);
+                        serImage = new SerializableImage(bufImage);
+                    } catch (IOException ex) {
+                        createFailedImage();
+                    }
+                } else {
+                    createFailedImage();
+                }
+            }
+        }
+    }
+
+    @Override
+    public boolean importSupported() {
+        return false;
     }
 }

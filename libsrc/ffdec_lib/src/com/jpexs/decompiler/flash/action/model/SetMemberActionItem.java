@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2023 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -91,7 +91,13 @@ public class SetMemberActionItem extends ActionItem implements SetTypeActionItem
 
     @Override
     public GraphTextWriter appendTo(GraphTextWriter writer, LocalData localData) throws InterruptedException {
-        object.toString(writer, localData);
+        if (((object instanceof DirectValueActionItem) && (((DirectValueActionItem) object).value instanceof Long))) {
+            writer.append("(");
+            object.toString(writer, localData);
+            writer.append(")");
+        } else {
+            object.toString(writer, localData);
+        }
 
         if ((!(objectName instanceof DirectValueActionItem)) || (!((DirectValueActionItem) objectName).isString()) || (!IdentifiersDeobfuscation.isValidName(false, ((DirectValueActionItem) objectName).toStringNoQuotes(localData)))) {
             writer.append("[");
@@ -134,9 +140,9 @@ public class SetMemberActionItem extends ActionItem implements SetTypeActionItem
     @Override
     public List<GraphSourceItem> toSource(SourceGeneratorLocalData localData, SourceGenerator generator) throws CompilationException {
         ActionSourceGenerator asGenerator = (ActionSourceGenerator) generator;
-        int tmpReg = asGenerator.getTempRegister(localData);
+        String charset = asGenerator.getCharset();  int tmpReg = asGenerator.getTempRegister(localData);
         try {
-            return toSourceMerge(localData, generator, object, objectName, value, new ActionStoreRegister(tmpReg), new ActionSetMember(), new ActionPush(new RegisterNumber(tmpReg)));
+            return toSourceMerge(localData, generator, object, objectName, value, new ActionStoreRegister(tmpReg, charset), new ActionSetMember(), new ActionPush(new RegisterNumber(tmpReg), charset));
         } finally {
             asGenerator.releaseTempRegister(localData, tmpReg);
         }

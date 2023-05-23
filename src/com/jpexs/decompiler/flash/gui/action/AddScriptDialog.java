@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2021 JPEXS
+ *  Copyright (C) 2021-2023 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -18,6 +18,7 @@ package com.jpexs.decompiler.flash.gui.action;
 
 import com.jpexs.decompiler.flash.ReadOnlyTagList;
 import com.jpexs.decompiler.flash.SWF;
+import com.jpexs.decompiler.flash.configuration.Configuration;
 import com.jpexs.decompiler.flash.gui.AppDialog;
 import com.jpexs.decompiler.flash.gui.FasterScrollPane;
 import com.jpexs.decompiler.flash.gui.Main;
@@ -226,7 +227,8 @@ public class AddScriptDialog extends AppDialog {
         for (Tag t : swf.getTags()) {
 
             if (t instanceof DoActionTag) {
-                hasScript = true;
+                //It is no longer a problem to have more than single DoAction
+                //hasScript = true;
             }
             if (t instanceof ShowFrameTag) {
                 MyFrame myf = new MyFrame(f);
@@ -240,7 +242,9 @@ public class AddScriptDialog extends AppDialog {
         frameList = new JList<>(framesArr);
         final ImageIcon frameIcon = View.getIcon("frame16");
         final ImageIcon frameInvalidIcon = View.getIcon("frameinvalid16");
-        frameList.setBackground(Color.white);
+        if (View.isOceanic()) {
+            frameList.setBackground(Color.white);
+        }
         frameList.setCellRenderer(new DefaultListCellRenderer() {
             @Override
             public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
@@ -285,7 +289,8 @@ public class AddScriptDialog extends AppDialog {
                 boolean hasScript = false;
                 for (Tag t2 : s.getTags()) {
                     if (t2 instanceof DoActionTag) {
-                        hasScript = true;
+                        //It is no longer a problem to have more than single DoAction
+                        //hasScript = true;
                     }
                     if (t2 instanceof ShowFrameTag) {
                         MyTreeNode frameNode = new MyTreeNode();
@@ -329,7 +334,9 @@ public class AddScriptDialog extends AppDialog {
 
         final ImageIcon spriteIcon = View.getIcon("sprite16");
         final ImageIcon spriteInvalidIcon = View.getIcon("spriteinvalid16");
-        spriteInitList.setBackground(Color.white);
+        if (View.isOceanic()) {
+            spriteInitList.setBackground(Color.white);
+        }
         spriteInitList.setCellRenderer(new DefaultListCellRenderer() {
             @Override
             public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
@@ -371,7 +378,6 @@ public class AddScriptDialog extends AppDialog {
         });
         spriteFrameTextField.getDocument().addDocumentListener(documentListener);
 
-
         MyTreeNode root = new MyTreeNode();
         root.setData("root");
         populateSpriteNodes(root, swf);
@@ -383,9 +389,11 @@ public class AddScriptDialog extends AppDialog {
 
         spriteFrameTree.setCellRenderer(new DefaultTreeCellRenderer() {
             {
-                setUI(new BasicLabelUI());
-                setOpaque(false);
-                setBackgroundNonSelectionColor(Color.white);
+                if (View.isOceanic()) {
+                    setUI(new BasicLabelUI());
+                    setOpaque(false);
+                    setBackgroundNonSelectionColor(Color.white);
+                }
             }
 
             @Override
@@ -411,7 +419,9 @@ public class AddScriptDialog extends AppDialog {
             }
         });
 
-        spriteFrameTree.setBackground(Color.white);
+        if (View.isOceanic()) {
+            spriteFrameTree.setBackground(Color.white);
+        }
         spriteFrameTree.setRootVisible(false);
         spriteFrameTree.setShowsRootHandles(true);
         spriteFrameTree.getSelectionModel().setSelectionMode(TreeSelectionModel.SINGLE_TREE_SELECTION);
@@ -449,7 +459,9 @@ public class AddScriptDialog extends AppDialog {
         }
         buttonList = new JList<>(buttons.toArray(new DefineButton2Tag[buttons.size()]));
         final ImageIcon buttonIcon = View.getIcon("button16");
-        buttonList.setBackground(Color.white);
+        if (View.isOceanic()) {
+            buttonList.setBackground(Color.white);
+        }
         buttonList.setCellRenderer(new DefaultListCellRenderer() {
             @Override
             public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
@@ -619,9 +631,11 @@ public class AddScriptDialog extends AppDialog {
 
         instanceTree.setCellRenderer(new DefaultTreeCellRenderer() {
             {
-                setUI(new BasicLabelUI());
-                setOpaque(false);
-                setBackgroundNonSelectionColor(Color.white);
+                if (View.isOceanic()) {
+                    setUI(new BasicLabelUI());
+                    setOpaque(false);
+                    setBackgroundNonSelectionColor(Color.white);
+                }
             }
 
             @Override
@@ -646,7 +660,9 @@ public class AddScriptDialog extends AppDialog {
         });
 
         instanceTree.addTreeSelectionListener(this::instanceValueChanged);
-        instanceTree.setBackground(Color.white);
+        if (View.isOceanic()) {
+            instanceTree.setBackground(Color.white);
+        }
 
         instancePreviewPanel = new PreviewPanel(Main.getMainFrame().getPanel(), null);
         instancePreviewPanel.setReadOnly(true);
@@ -716,22 +732,22 @@ public class AddScriptDialog extends AppDialog {
             int f = ((MyFrame) ((MyTreeNode) tnode.getParent()).getData()).frame;
             Object parent = ((MyTreeNode) tnode.getParent().getParent()).getData();
             if (parent instanceof DefineSpriteTag) {
-                instancePreviewPanel.showImagePanel((DefineSpriteTag) parent, swf, f - 1);
+                instancePreviewPanel.showImagePanel((DefineSpriteTag) parent, swf, f - 1, true, Configuration.autoPlayPreviews.get(), !Configuration.animateSubsprites.get(), false, !Configuration.playFrameSounds.get(), true, false);
             } else {
-                instancePreviewPanel.showImagePanel(swf, swf, f - 1);
+                instancePreviewPanel.showImagePanel(swf, swf, f - 1, true, Configuration.autoPlayPreviews.get(), !Configuration.animateSubsprites.get(), false, !Configuration.playFrameSounds.get(), true, false);
             }
 
         } else if (tnode.getData() instanceof DefineSpriteTag) {
             instancePreviewPanel.selectImageDepth(-1);
-            instancePreviewPanel.showImagePanel((DefineSpriteTag) tnode.getData(), swf, -1);
+            instancePreviewPanel.showImagePanel((DefineSpriteTag) tnode.getData(), swf, -1, true, Configuration.autoPlayPreviews.get(), !Configuration.animateSubsprites.get(), false, !Configuration.playFrameSounds.get(), true, false);
         } else if (tnode.getData() instanceof MyFrame) {
             instancePreviewPanel.selectImageDepth(-1);
             int f = ((MyFrame) tnode.getData()).frame;
             Object parent = ((MyTreeNode) tnode.getParent()).getData();
             if (parent instanceof DefineSpriteTag) {
-                instancePreviewPanel.showImagePanel((DefineSpriteTag) parent, swf, f - 1);
+                instancePreviewPanel.showImagePanel((DefineSpriteTag) parent, swf, f - 1, true, Configuration.autoPlayPreviews.get(), !Configuration.animateSubsprites.get(), false, !Configuration.playFrameSounds.get(), true, false);
             } else {
-                instancePreviewPanel.showImagePanel(swf, swf, f - 1);
+                instancePreviewPanel.showImagePanel(swf, swf, f - 1, true, Configuration.autoPlayPreviews.get(), !Configuration.animateSubsprites.get(), false, !Configuration.playFrameSounds.get(), true, false);
             }
         }
         checkEnabled();
@@ -745,7 +761,7 @@ public class AddScriptDialog extends AppDialog {
             checkEnabled();
             return;
         }
-        spriteInitPreviewPanel.showImagePanel(spriteInitList.getSelectedValue(), swf, -1);
+        spriteInitPreviewPanel.showImagePanel(spriteInitList.getSelectedValue(), swf, -1, true, Configuration.autoPlayPreviews.get(), !Configuration.animateSubsprites.get(), false, !Configuration.playFrameSounds.get(), true, false);
         checkEnabled();
     }
 
@@ -757,7 +773,7 @@ public class AddScriptDialog extends AppDialog {
             checkEnabled();
             return;
         }
-        framePreviewPanel.showImagePanel(swf, swf, selectedIndex);
+        framePreviewPanel.showImagePanel(swf, swf, selectedIndex, true, Configuration.autoPlayPreviews.get(), !Configuration.animateSubsprites.get(), false, !Configuration.playFrameSounds.get(), true, false);
         int f = selectedIndex + 1;
 
         if (!frameTextField.getText().equals("" + f)) {
@@ -769,7 +785,7 @@ public class AddScriptDialog extends AppDialog {
     private void buttonValueChanged(ListSelectionEvent e) {
         buttonPreviewPanel.showEmpty();
         if (buttonList.getSelectedIndex() >= 0) {
-            buttonPreviewPanel.showImagePanel(MainPanel.makeTimelined(buttonList.getSelectedValue()), swf, -1);
+            buttonPreviewPanel.showImagePanel(MainPanel.makeTimelined(buttonList.getSelectedValue()), swf, -1, true, Configuration.autoPlayPreviews.get(), !Configuration.animateSubsprites.get(), false, !Configuration.playFrameSounds.get(), true, false);
         }
 
         checkEnabled();
@@ -785,14 +801,14 @@ public class AddScriptDialog extends AppDialog {
         }
         MyTreeNode tnode = (MyTreeNode) selection.getLastPathComponent();
         if (tnode.getData() instanceof DefineSpriteTag) {
-            spriteFramePreviewPanel.showImagePanel((DefineSpriteTag) tnode.getData(), swf, -1);
+            spriteFramePreviewPanel.showImagePanel((DefineSpriteTag) tnode.getData(), swf, -1, true, Configuration.autoPlayPreviews.get(), !Configuration.animateSubsprites.get(), false, !Configuration.playFrameSounds.get(), true, false);
         } else if (tnode.getData() instanceof MyFrame) {
             int f = ((MyFrame) tnode.getData()).frame;
             Object parent = ((MyTreeNode) tnode.getParent()).getData();
             if (parent instanceof DefineSpriteTag) {
-                spriteFramePreviewPanel.showImagePanel((DefineSpriteTag) parent, swf, f - 1);
+                spriteFramePreviewPanel.showImagePanel((DefineSpriteTag) parent, swf, f - 1, true, Configuration.autoPlayPreviews.get(), !Configuration.animateSubsprites.get(), false, !Configuration.playFrameSounds.get(), true, false);
             } else {
-                spriteFramePreviewPanel.showImagePanel(swf, swf, f - 1);
+                spriteFramePreviewPanel.showImagePanel(swf, swf, f - 1, true, Configuration.autoPlayPreviews.get(), !Configuration.animateSubsprites.get(), false, !Configuration.playFrameSounds.get(), true, false);
             }
             if (!spriteFrameTextField.getText().equals("" + f)) {
                 spriteFrameTextField.setText("" + f);

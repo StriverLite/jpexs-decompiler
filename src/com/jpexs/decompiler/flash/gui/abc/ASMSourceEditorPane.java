@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS
+ *  Copyright (C) 2010-2023 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -36,7 +36,6 @@ import com.jpexs.decompiler.flash.docs.As3PCodeOtherDocs;
 import com.jpexs.decompiler.flash.exporters.modes.ScriptExportMode;
 import com.jpexs.decompiler.flash.gui.GraphDialog;
 import com.jpexs.decompiler.flash.gui.Main;
-import com.jpexs.decompiler.flash.gui.View;
 import com.jpexs.decompiler.flash.gui.ViewMessages;
 import com.jpexs.decompiler.flash.gui.editor.DebuggableEditorPane;
 import com.jpexs.decompiler.flash.helpers.HighlightedText;
@@ -47,6 +46,7 @@ import com.jpexs.decompiler.flash.tags.ABCContainerTag;
 import com.jpexs.decompiler.flash.tags.Tag;
 import com.jpexs.decompiler.graph.ScopeStack;
 import com.jpexs.helpers.Helper;
+import java.awt.Color;
 import java.awt.Point;
 import java.io.IOException;
 import java.io.StringReader;
@@ -60,6 +60,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.JOptionPane;
 import javax.swing.SwingUtilities;
+import javax.swing.UIManager;
 import javax.swing.event.CaretEvent;
 import javax.swing.event.CaretListener;
 
@@ -72,6 +73,9 @@ public class ASMSourceEditorPane extends DebuggableEditorPane implements CaretLi
     public ABC abc;
 
     public int bodyIndex = -1;
+    
+    
+    public int methodIndex = -1;
 
     private int scriptIndex = -1;
 
@@ -124,8 +128,23 @@ public class ASMSourceEditorPane extends DebuggableEditorPane implements CaretLi
         if (trait != null && exportMode != ScriptExportMode.AS && exportMode != ScriptExportMode.AS_METHOD_STUBS) {
             trait.convertTraitHeader(abc, writer);
         }
-        MethodBody body = abc.bodies.get(bodyIndex);
-        abc.bodies.get(bodyIndex).getCode().toASMSource(abc, abc.constants, abc.method_info.get(body.method_info), body, exportMode, writer);
+        if (bodyIndex > -1) {
+            MethodBody body = abc.bodies.get(bodyIndex);        
+            abc.bodies.get(bodyIndex).getCode().toASMSource(abc, abc.constants, abc.method_info.get(body.method_info), body, exportMode, writer);
+        } else {
+            writer.appendNoHilight("method");
+            if (Configuration.indentAs3PCode.get()) {
+                writer.indent();
+            }
+            writer.newLine();
+            
+            abc.method_info.get(methodIndex).toASMSource(abc.constants, writer);
+            
+            if (Configuration.indentAs3PCode.get()) {
+                writer.unindent();
+            }
+            writer.appendNoHilight("end ; method").newLine();
+        }
         if (trait != null && exportMode != ScriptExportMode.AS && exportMode != ScriptExportMode.AS_METHOD_STUBS) {
             if (Configuration.indentAs3PCode.get()) {
                 writer.unindent();
@@ -157,7 +176,9 @@ public class ASMSourceEditorPane extends DebuggableEditorPane implements CaretLi
             changeContentType("text/plain");
             if (textHexOnly == null) {
                 HighlightedTextWriter writer = new HighlightedTextWriter(Configuration.getCodeFormatting(), true);
-                Helper.byteArrayToHexWithHeader(writer, abc.bodies.get(bodyIndex).getCodeBytes());
+                if (bodyIndex > -1) {
+                    Helper.byteArrayToHexWithHeader(writer, abc.bodies.get(bodyIndex).getCodeBytes());
+                }
                 textHexOnly = new HighlightedText(writer);
             }
             setText(textHexOnly);
@@ -219,15 +240,13 @@ public class ASMSourceEditorPane extends DebuggableEditorPane implements CaretLi
         return super.getName();
     }
 
-    public void setBodyIndex(String scriptPathName, int bodyIndex, ABC abc, String name, Trait trait, int scriptIndex) {
+    public void setMethod(String scriptPathName, int methodIndex, int bodyIndex, ABC abc, String name, Trait trait, int scriptIndex) {
+        this.methodIndex = methodIndex;
         this.bodyIndex = bodyIndex;
         this.abc = abc;
         this.name = name;
         this.trait = trait;
-        this.scriptIndex = scriptIndex;
-        if (bodyIndex == -1) {
-            return;
-        }
+        this.scriptIndex = scriptIndex;        
         textWithHex = null;
         textNoHex = null;
         textHexOnly = null;
@@ -246,7 +265,7 @@ public class ASMSourceEditorPane extends DebuggableEditorPane implements CaretLi
 
     public void graph() {
         try {
-            AVM2Graph gr = new AVM2Graph(abc.bodies.get(bodyIndex).getCode(), abc, abc.bodies.get(bodyIndex), false, -1, -1, new HashMap<>(), new ScopeStack(), new HashMap<>(), new ArrayList<>(), new HashMap<>(), abc.bodies.get(bodyIndex).getCode().visitCode(abc.bodies.get(bodyIndex)));
+            AVM2Graph gr = new AVM2Graph(null /*?*/, abc.bodies.get(bodyIndex).getCode(), abc, abc.bodies.get(bodyIndex), false, -1, -1, new HashMap<>(), new ScopeStack(), new ScopeStack(), new HashMap<>(), new ArrayList<>(), new HashMap<>()); //, abc.bodies.get(bodyIndex).getCode().visitCode(abc.bodies.get(bodyIndex)));
             (new GraphDialog(getAbcPanel().getMainPanel().getMainFrame().getWindow(), gr, name)).setVisible(true);
         } catch (InterruptedException ex) {
             Logger.getLogger(ASMSourceEditorPane.class.getName()).log(Level.SEVERE, null, ex);
@@ -269,9 +288,11 @@ public class ASMSourceEditorPane extends DebuggableEditorPane implements CaretLi
         try {
             String text = getText();
             if (text.trim().startsWith(Helper.hexData)) {
-                byte[] data = Helper.getBytesFromHexaText(text);
-                MethodBody mb = abc.bodies.get(bodyIndex);
-                mb.setCodeBytes(data);
+                if (bodyIndex > -1) {
+                    byte[] data = Helper.getBytesFromHexaText(text);
+                    MethodBody mb = abc.bodies.get(bodyIndex);
+                    mb.setCodeBytes(data);
+                }
             } else {
                 AVM2Code acode = ASM3Parser.parse(abc, new StringReader(text), trait, new MissingSymbolHandler() {
                     //no longer ask for adding new constants
@@ -309,9 +330,10 @@ public class ASMSourceEditorPane extends DebuggableEditorPane implements CaretLi
                     public boolean missingFloat4(Float4 value) {
                         return true;
                     }
-                }, abc.bodies.get(bodyIndex), abc.method_info.get(abc.bodies.get(bodyIndex).method_info));
-                //acode.getBytes(abc.bodies.get(bodyIndex).getCodeBytes());
-                abc.bodies.get(bodyIndex).setCode(acode);
+                }, bodyIndex == -1 ? null : abc.bodies.get(bodyIndex), abc.method_info.get(methodIndex));
+                if (bodyIndex > -1) {
+                    abc.bodies.get(bodyIndex).setCode(acode);
+                }
             }
 
             ((Tag) abc.parentTag).setModified(true);
@@ -367,6 +389,8 @@ public class ASMSourceEditorPane extends DebuggableEditorPane implements CaretLi
     public void clear() {
         setText("");
         bodyIndex = -1;
+        methodIndex = -1;
+        scriptIndex = -1;
         setCaretPosition(0);
     }
 
@@ -593,6 +617,10 @@ public class ASMSourceEditorPane extends DebuggableEditorPane implements CaretLi
     public void updateDocs() {
         String path = getLevel();
 
+        Color c = UIManager.getColor("EditorPane.background");
+        int light = (c.getRed() + c.getGreen() + c.getBlue()) / 3;
+        boolean nightMode = light <= 128;
+
         String pathNoTrait = path;
         if (path.startsWith("trait.method")) {
             pathNoTrait = path.substring("trait.".length());
@@ -626,11 +654,12 @@ public class ASMSourceEditorPane extends DebuggableEditorPane implements CaretLi
                 SwingUtilities.convertPointToScreen(loc, this);
             }
             if (insNameToDef.containsKey(insName)) {
-                fireDocs("instruction." + insName, As3PCodeDocs.getDocsForIns(insName, false, true, true), loc);
+
+                fireDocs("instruction." + insName, As3PCodeDocs.getDocsForIns(insName, false, true, true, nightMode), loc);
                 return;
             }
         }
-        String pathDocs = As3PCodeOtherDocs.getDocsForPath(pathNoTrait);
+        String pathDocs = As3PCodeOtherDocs.getDocsForPath(pathNoTrait, nightMode);
         if (pathDocs == null) {
             fireNoDocs();
         } else {

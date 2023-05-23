@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2023 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -23,6 +23,7 @@ import com.jpexs.decompiler.flash.helpers.HighlightedTextWriter;
 import com.jpexs.decompiler.flash.tags.DoActionTag;
 import com.jpexs.decompiler.flash.tags.ShowFrameTag;
 import com.jpexs.decompiler.flash.tags.Tag;
+import com.jpexs.helpers.utf8.Utf8Helper;
 import java.io.BufferedInputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -53,7 +54,7 @@ public class ActionScript2Test extends ActionScript2TestBase {
         assertNotNull(doa);
         HighlightedTextWriter writer = new HighlightedTextWriter(new CodeFormatting(), false);
         try {
-            Action.actionsToSource(doa, doa.getActions(), "", writer);
+            Action.actionsToSource(doa, doa.getActions(), "", writer, Utf8Helper.charsetName);
         } catch (InterruptedException ex) {
             fail();
         }
@@ -495,10 +496,7 @@ public class ActionScript2Test extends ActionScript2TestBase {
                 + "{\r\n"
                 + "throw new Error();\r\n"
                 + "}\r\n"
-                + "else\r\n"
-                + "{\r\n"
                 + "_loc1_ = 7;\r\n"
-                + "}\r\n"
                 + "}\r\n"
                 + "catch(e)\r\n"
                 + "{\r\n"
@@ -1889,10 +1887,7 @@ public class ActionScript2Test extends ActionScript2TestBase {
                 + "{\r\n"
                 + "throw e;\r\n"
                 + "}\r\n"
-                + "else\r\n"
-                + "{\r\n"
                 + "trace(\"err:\" + e);\r\n"
-                + "}\r\n"
                 + "}\r\n"
                 + "try\r\n"
                 + "{\r\n"
@@ -2178,6 +2173,236 @@ public class ActionScript2Test extends ActionScript2TestBase {
                 + "x = a.b.c += 10;\r\n"
                 + "f(5);\r\n"
                 + "trace(a.b.c += 30);\r\n"
+        );
+    }
+
+    @Test
+    public void frame77_Test() {
+        compareSrc(77, "var as = 5;\r\n"
+                + "var abstract = 6;\r\n"
+                + "var Boolean = 7;\r\n"
+                + "var bytes = 8;\r\n"
+                + "var char = 9;\r\n"
+                + "var const = 10;\r\n"
+                + "var debugger = 11;\r\n"
+                + "var double = 12;\r\n"
+                + "var enum = 13;\r\n"
+                + "var export = 14;\r\n"
+                + "var final = 15;\r\n"
+                + "var float = 16;\r\n"
+                + "var goto = 17;\r\n"
+                + "var is = 18;\r\n"
+                + "var long = 19;\r\n"
+                + "var namespace = 20;\r\n"
+                + "var native = 21;\r\n"
+                + "var package = 22;\r\n"
+                + "var protected = 23;\r\n"
+                + "var short = 24;\r\n"
+                + "var synchronized = 25;\r\n"
+                + "var throws = 26;\r\n"
+                + "var transient = 27;\r\n"
+                + "var use = 28;\r\n"
+                + "var volatile = 29;\r\n"
+                + "var false = 43;\r\n"
+                + "var get = 48;\r\n"
+                + "var null = 62;\r\n"
+                + "var set = 69;\r\n"
+                + "var undefined = 76;\r\n"
+                + "var true = 81;\r\n"
+                + "var false = 82;\r\n"
+                + "var NaN = 83;\r\n"
+                + "var newline = 84;\r\n"
+                + "var Infinity = 85;\r\n"
+                + "var each = 86;\r\n"
+        );
+    }
+
+    @Test
+    public void frame78_tellTargetTest() {
+        compareSrc(78, "trace(\"tellTargetTest\");\r\n"
+                + "tellTarget(root.something)\r\n"
+                + "{\r\n"
+                + "trace(\"A\");\r\n"
+                + "var event1 = function()\r\n"
+                + "{\r\n"
+                + "trace(\"B\");\r\n"
+                + "tellTarget(root.bagr)\r\n"
+                + "{\r\n"
+                + "trace(\"C\");\r\n"
+                + "}\r\n"
+                + "trace(\"D\");\r\n"
+                + "};\r\n"
+                + "}\r\n"
+                + "trace(\"E\");\r\n"
+                + "tellTarget(root.somethingA)\r\n"
+                + "{\r\n"
+                + "trace(\"F\");\r\n"
+                + "tellTarget(root.somethingB)\r\n"
+                + "{\r\n"
+                + "trace(\"G\");\r\n"
+                + "}\r\n"
+                + "trace(\"H\");\r\n"
+                + "}\r\n"
+                + "trace(\"I\");\r\n"
+                + "tellTarget(root.somethingC)\r\n"
+                + "{\r\n"
+                + "trace(\"J\");\r\n"
+                + "}\r\n"
+                + "trace(\"K\");\r\n"
+                + "tellTarget(root.somethingD)\r\n"
+                + "{\r\n"
+                + "trace(\"L\");\r\n"
+                + "tellTarget(root.somethingE)\r\n"
+                + "{\r\n"
+                + "trace(\"M\");\r\n"
+                + "tellTarget(root.somethingF)\r\n"
+                + "{\r\n"
+                + "trace(\"N\");\r\n"
+                + "}\r\n"
+                + "trace(\"O\");\r\n"
+                + "}\r\n"
+                + "trace(\"P\");\r\n"
+                + "}\r\n"
+                + "trace(\"Q\");\r\n"
+        );
+    }
+
+    @Test
+    public void frame79_registersVsDefineLocalTest() {
+        compareSrc(79, "function x1(c)\r\n"
+                + "{\r\n"
+                + "var _loc2_ = 1;\r\n"
+                + "var _loc1_ = 2;\r\n"
+                + "return _loc2_ + _loc1_ * c;\r\n"
+                + "}\r\n"
+                + "function x2(c)\r\n"
+                + "{\r\n"
+                + "var a0 = 1;\r\n"
+                + "var a1 = 2;\r\n"
+                + "var r = Math.floor(Math.random() * 2);\r\n"
+                + "return eval(\"a\" + r) + b * c;\r\n"
+                + "}\r\n"
+                + "function x3(c)\r\n"
+                + "{\r\n"
+                + "var _loc2_ = 1;\r\n"
+                + "var _loc3_ = 2;\r\n"
+                + "var _loc1_ = Math.floor(Math.random() * 2);\r\n"
+                + "set(\"a\" + _loc1_,12);\r\n"
+                + "return _loc2_ + b * c;\r\n"
+                + "}\r\n"
+                + "trace(\"registersVsDefineLocalTest\");\r\n"
+                + "trace(x1(2) + x2(3) + x3(4));\r\n"
+        );
+    }
+
+    @Test
+    public void frame80_deleteEvalTest() {
+        compareSrc(80, "trace(\"deleteEvalTest\");\r\n"
+                + "var k0 = 1;\r\n"
+                + "var k1 = 2;\r\n"
+                + "var r = Math.floor(Math.random() * 2);\r\n"
+                + "trace(eval(\"k\" + r));\r\n"
+                + "delete (\"k\" + r);\r\n"
+                + "trace(eval(\"k\" + r));\r\n"
+        );
+    }
+
+    @Test
+    public void frame81_globalFuncAsVarTest() {
+        compareSrc(81, "function t(x)\r\n"
+                + "{\r\n"
+                + "trace(x);\r\n"
+                + "}\r\n"
+                + "trace(\"globalFuncAsVarTest\");\r\n"
+                + "var trace = 5;\r\n"
+                + "trace = t;\r\n"
+        );
+    }
+
+    @Test
+    public void frame82_switchAndTest() {
+        compareSrc(82, "trace(\"switchAndTest\");\r\n"
+                + "var a = 5;\r\n"
+                + "var b = 3;\r\n"
+                + "switch(true)\r\n"
+                + "{\r\n"
+                + "case a >= 0 && a <= 3:\r\n"
+                + "trace(\"a 0-3\");\r\n"
+                + "break;\r\n"
+                + "case a >= 4 && a <= 6:\r\n"
+                + "trace(\"a 4-6\");\r\n"
+                + "case a >= 7 && a <= 10:\r\n"
+                + "trace(\"a 7-10\");\r\n"
+                + "break;\r\n"
+                + "case a >= 11 && a <= 20:\r\n"
+                + "trace(\"a 11-20\");\r\n"
+                + "break;\r\n"
+                + "case a != 0 ? b < 5 : b > 5:\r\n"
+                + "trace(\"a 0, b xx\");\r\n"
+                + "}\r\n"
+        );
+    }
+
+    @Test
+    public void frame83_ifframeLoaded2Test() {
+        compareSrc(83, "trace(\"ifframeLoaded2Test\");\r\n"
+                + "trace(\"A\");\r\n"
+                + "ifFrameLoaded(9)\r\n"
+                + "{\r\n"
+                + "var d = 5;\r\n"
+                + "if(d == 4)\r\n"
+                + "{\r\n"
+                + "trace(\"B\");\r\n"
+                + "}\r\n"
+                + "else\r\n"
+                + "{\r\n"
+                + "trace(\"C\");\r\n"
+                + "}\r\n"
+                + "trace(\"D\");\r\n"
+                + "}\r\n"
+                + "trace(\"E\");\r\n"
+        );
+    }
+
+    @Test
+    public void frame84_withTest() {
+        compareSrc(84, "trace(\"withTest\");\r\n"
+                + "trace(\"before\");\r\n"
+                + "with(_root.something)\r\n"
+                + "{\r\n"
+                + "somesub = 5;\r\n"
+                + "with(subvar)\r\n"
+                + "{\r\n"
+                + "somesub2 = 4;\r\n"
+                + "}\r\n"
+                + "trace(\"after1\");\r\n"
+                + "}\r\n"
+                + "trace(\"after\");\r\n"
+        );
+    }
+
+    @Test
+    public void frame85_numbersCallTest() {
+        compareSrc(85, "trace(\"numbersCallTest\");\r\n"
+                + "var a = (5).toString();\r\n"
+                + "var b = 5.2.toString();\r\n"
+        );
+    }
+
+    @Test
+    public void frame86_tryInsideForInTest() {
+        compareSrc(86, "trace(\"tryInsideForInTest\");\r\n"
+                + "var obj = {};\r\n"
+                + "for(var thing in obj)\r\n"
+                + "{\r\n"
+                + "try\r\n"
+                + "{\r\n"
+                + "trace(\"a\");\r\n"
+                + "}\r\n"
+                + "catch(error:Object)\r\n"
+                + "{\r\n"
+                + "}\r\n"
+                + "}\r\n"
         );
     }
 }

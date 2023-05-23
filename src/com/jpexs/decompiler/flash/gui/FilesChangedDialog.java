@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2021 JPEXS
+ *  Copyright (C) 2021-2023 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -71,7 +71,9 @@ public class FilesChangedDialog extends AppDialog {
         label.setBorder(new EmptyBorder(10, 10, 10, 10));
         cnt.add(label, BorderLayout.NORTH);
         filesList = new JList<String>(listModel);
-        filesList.setBackground(Color.white);
+        if (View.isOceanic()) {
+            filesList.setBackground(Color.white);
+        }
         cnt.add(new FasterScrollPane(filesList), BorderLayout.CENTER);
 
         JPanel panButtons = new JPanel(new FlowLayout());

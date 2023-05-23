@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS
+ *  Copyright (C) 2010-2023 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -113,15 +113,21 @@ public class ErrorLogFrame extends AppFrame {
     public ErrorLogFrame() {
         setTitle(translate("dialog.title"));
         setSize(700, 400);
-        setBackground(Color.white);
+        if (View.isOceanic()) {
+            setBackground(Color.white);
+        }
         View.centerScreen(this);
         View.setWindowIcon(this);
         setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
         Container cnt = getContentPane();
         cnt.setLayout(new BorderLayout());
-        logView.setBackground(Color.white);
+        if (View.isOceanic()) {
+            logView.setBackground(Color.white);
+        }
         logView.setLayout(new BorderLayout());
-        cnt.setBackground(Color.white);
+        if (View.isOceanic()) {
+            cnt.setBackground(Color.white);
+        }
 
         logViewInner.setLayout(new BoxLayout(logViewInner, BoxLayout.Y_AXIS));
         logView.add(logViewInner, BorderLayout.NORTH);
@@ -209,7 +215,9 @@ public class ErrorLogFrame extends AppFrame {
                 notifyMainFrame(level);
 
                 JPanel pan = new JPanel();
-                pan.setBackground(Color.white);
+                if (View.isOceanic()) {
+                    pan.setBackground(Color.white);
+                }
                 pan.setLayout(new BoxLayout(pan, BoxLayout.Y_AXIS));
 
                 JComponent detailComponent;
@@ -220,13 +228,16 @@ public class ErrorLogFrame extends AppFrame {
                     detailTextArea.setEditable(false);
                     detailTextArea.setOpaque(false);
                     detailTextArea.setFont(new JLabel().getFont());
-                    detailTextArea.setBackground(Color.white);
+                    if (View.isOceanic()) {
+                        detailTextArea.setBackground(Color.white);
+                    }
                     detailComponent = detailTextArea;
                 }
                 JPanel header = new JPanel();
                 header.setLayout(new BoxLayout(header, BoxLayout.X_AXIS));
-                header.setBackground(Color.white);
-
+                if (View.isOceanic()) {
+                    header.setBackground(Color.white);
+                }
                 SimpleDateFormat format = new SimpleDateFormat("dd/MM/YYYY HH:mm:ss");
                 final String dateStr = format.format(new Date());
 
@@ -303,7 +314,9 @@ public class ErrorLogFrame extends AppFrame {
                     scrollPane.setVisible(false);
                 }
                 pan.setAlignmentX(0f);
-                logViewInner.add(pan);
+                if (logViewInner != null) { //may be disposed or what? #1904
+                    logViewInner.add(pan);
+                }
                 revalidate();
                 repaint();
             });

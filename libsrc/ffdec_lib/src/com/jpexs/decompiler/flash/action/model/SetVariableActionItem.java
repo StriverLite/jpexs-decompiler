@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2023 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -23,6 +23,7 @@ import com.jpexs.decompiler.flash.action.swf4.ActionPush;
 import com.jpexs.decompiler.flash.action.swf4.ActionSetVariable;
 import com.jpexs.decompiler.flash.action.swf4.RegisterNumber;
 import com.jpexs.decompiler.flash.action.swf5.ActionStoreRegister;
+import com.jpexs.decompiler.flash.ecma.Undefined;
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
 import com.jpexs.decompiler.flash.helpers.hilight.HighlightData;
 import com.jpexs.decompiler.graph.CompilationException;
@@ -49,6 +50,8 @@ public class SetVariableActionItem extends ActionItem implements SetTypeActionIt
     public GraphTargetItem compoundValue;
 
     public String compoundOperator;
+
+    public boolean forceUseSet = false;
 
     @Override
     public GraphPart getFirstPart() {
@@ -80,14 +83,29 @@ public class SetVariableActionItem extends ActionItem implements SetTypeActionIt
         this.name = name;
     }
 
+    private boolean resultNeeded() {
+        boolean needsTempRegister = false;
+        if (value instanceof StoreRegisterActionItem) {
+            StoreRegisterActionItem sr = (StoreRegisterActionItem) value;
+            if (sr.temporary) {
+                needsTempRegister = true;
+            }
+        }
+        return needsTempRegister;
+    }
+
+    private boolean isValidName(LocalData localData) {
+        return ((name instanceof DirectValueActionItem)) && (((DirectValueActionItem) name).isString())
+                && (IdentifiersDeobfuscation.isValidName(false, ((DirectValueActionItem) name).toStringNoQuotes(localData), "this", "super"));
+    }
+
     @Override
     public GraphTextWriter appendTo(GraphTextWriter writer, LocalData localData) throws InterruptedException {
-        if (((name instanceof DirectValueActionItem)) && (((DirectValueActionItem) name).isString())
-                && (IdentifiersDeobfuscation.isValidName(false, ((DirectValueActionItem) name).toStringNoQuotes(localData), "this", "super")
-                || IdentifiersDeobfuscation.isValidNameWithSlash(((DirectValueActionItem) name).toStringNoQuotes(localData), "this", "super"))) {
+        if (isValidName(localData) || resultNeeded()) {
+            //TODO: handle result needed better, without identifierdeobfuscation
             HighlightData srcData = getSrcData();
             srcData.localName = name.toStringNoQuotes(localData);
-            stripQuotes(name, localData, writer);
+            writer.append(IdentifiersDeobfuscation.printIdentifier(false, name.toStringNoQuotes(localData)));
             if (compoundOperator != null) {
                 writer.append(" ");
                 writer.append(compoundOperator);
@@ -138,9 +156,14 @@ public class SetVariableActionItem extends ActionItem implements SetTypeActionIt
     @Override
     public List<GraphSourceItem> toSource(SourceGeneratorLocalData localData, SourceGenerator generator) throws CompilationException {
         ActionSourceGenerator asGenerator = (ActionSourceGenerator) generator;
+        String charset = asGenerator.getCharset();  
+
+        if (forceUseSet) {
+            return toSourceMerge(localData, generator, name, value, new ActionSetVariable(), new ActionPush(Undefined.INSTANCE, charset));
+        }
         int tmpReg = asGenerator.getTempRegister(localData);
         try {
-            return toSourceMerge(localData, generator, name, value, new ActionStoreRegister(tmpReg), new ActionSetVariable(), new ActionPush(new RegisterNumber(tmpReg)));
+            return toSourceMerge(localData, generator, name, value, new ActionStoreRegister(tmpReg, charset), new ActionSetVariable(), new ActionPush(new RegisterNumber(tmpReg), charset));
         } finally {
             asGenerator.releaseTempRegister(localData, tmpReg);
         }

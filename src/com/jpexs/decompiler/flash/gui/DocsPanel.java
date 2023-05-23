@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2016-2021 JPEXS
+ *  Copyright (C) 2016-2023 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -41,7 +41,9 @@ public class DocsPanel extends JPanel implements DocsListener {
         add(sp, BorderLayout.CENTER);
         textDisplay.setContentType("text/html");
         textDisplay.setFocusable(false);
-        textDisplay.setBackground(Color.white);
+        if (View.isOceanic()) {
+            textDisplay.setBackground(Color.white);
+        }
     }
 
     @Override

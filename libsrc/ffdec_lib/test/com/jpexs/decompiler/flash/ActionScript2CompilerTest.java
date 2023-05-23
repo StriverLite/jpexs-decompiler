@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2023 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -26,6 +26,7 @@ import com.jpexs.decompiler.flash.helpers.HighlightedTextWriter;
 import com.jpexs.decompiler.flash.tags.DoActionTag;
 import com.jpexs.decompiler.flash.tags.base.ASMSource;
 import com.jpexs.decompiler.graph.CompilationException;
+import com.jpexs.helpers.utf8.Utf8Helper;
 import java.io.BufferedInputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -49,6 +50,7 @@ public class ActionScript2CompilerTest extends ActionScript2TestBase {
         Configuration.simplifyExpressions.set(false);
         Configuration.decompile.set(true);
         Configuration.registerNameFormat.set("_loc%d_");
+        Configuration.resolveConstants.set(true);
         swf = new SWF(new BufferedInputStream(new FileInputStream("testdata/as2/as2.swf")), false);
     }
 
@@ -59,7 +61,7 @@ public class ActionScript2CompilerTest extends ActionScript2TestBase {
 
             ActionScript2Parser par = new ActionScript2Parser(swf, asm);
             try {
-                asm.setActions(par.actionsFromString(sourceAsToCompile));
+                asm.setActions(par.actionsFromString(sourceAsToCompile, Utf8Helper.charsetName));
             } catch (ActionParseException | CompilationException ex) {
                 fail("Unable to parse: " + sourceAsToCompile + "/" + asm.toString(), ex);
             }
@@ -163,5 +165,13 @@ public class ActionScript2CompilerTest extends ActionScript2TestBase {
                 + "}\n"
                 + "DefineLocal\n"
                 + "}");
+    }
+
+    @Test
+    public void stopUndefined() {
+        testCompilation("trace(stop());", "ConstantPool\n"
+                + "Stop\n"
+                + "Push undefined undefined\n"
+                + "Trace");
     }
 }

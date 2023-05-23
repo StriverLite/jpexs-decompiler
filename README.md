@@ -1,26 +1,28 @@
 # JPEXS Free Flash Decompiler
+![Build passing badge](https://github.com/jindrapetrik/jpexs-decompiler/actions/workflows/main.yml/badge.svg?branch=dev)
 
-Opensource flash SWF decompiler and editor. Extract resources, convert SWF to FLA, edit ActionScript, replace images, sounds, texts or fonts. Various output formats available. Works with Java on Windows, Linux or MacOS.
+Open Source Flash SWF decompiler and editor. Extract resources, convert SWF to FLA, edit ActionScript, replace images, sounds, texts and fonts. Various output formats available. Works with Java on Windows, Linux and macOS.
 
 ## Application description and features
-For information about using the software, list of features, etc., visit [FFDec Wiki](https://github.com/jindrapetrik/jpexs-decompiler/wiki/).
+For information about using the software, list of features, etc., visit [FFDec Wiki](https://github.com/jindrapetrik/jpexs-decompiler/wiki).
 
 ## Free-Decompiler.com website
-In the past (before 2018), we were using *free-decompiler.com* domain as HomePage, GitHub for source code, now we moved all information to Github.
+In the past (before 2018), we were using *free-decompiler.com* domain as homepage and GitHub for the source code, We've now moved all information (except the issue tracker) to GitHub.
 
 ## Download application
 For downloading the app, see [latest release](https://github.com/jindrapetrik/jpexs-decompiler/releases/latest).
-Older versions and nightly builds are availabe on [releases section](https://github.com/jindrapetrik/jpexs-decompiler/releases)
+Older versions and nightly builds are availabe at the [releases section](https://github.com/jindrapetrik/jpexs-decompiler/releases)
 
 ### How to install
-See [installation section of wiki](https://github.com/jindrapetrik/jpexs-decompiler/wiki/Installation)
+See [installation section of the wiki](https://github.com/jindrapetrik/jpexs-decompiler/wiki/Installation)
 
 ## Source code
-### How to get source
- You can make local copy of the sources with the following command:
+### How to get the source
+ You can make a local copy of the sources with the following command:
 ```
 git clone https://github.com/jindrapetrik/jpexs-decompiler.git
 ```
+This assumes you have git installed on your system.
 
 ### Branches 
 Git source control manager supports multiple code branches. We use two main branches.
@@ -34,11 +36,11 @@ git checkout dev
 ```
 
 ### GIT recommended
-It is recommended to have [GIT] commandline executables installed. Building script uses GIT to include revision number in to the binary. (For Windows, you must enable Git in windows commandline during installation.)
+It is recommended to have [GIT] commandline executables installed. Building script uses GIT to include revision number in to the binary. (For Windows, you must enable Git in windows command line during installation.)
 
 ### Netbeans project
 
-Source code contains Netbeans Project so you can open it in [Netbeans IDE]. Then you can use standard actions like Run, Build,Debug, Clean and Build in the IDE. Other specific tasks can be executed via menu on build.xml (see Ant part)
+Source code contains Netbeans Project so you can open it in [Netbeans IDE]. Then you can use standard actions like Run, Build, Debug, Clean and Build in the IDE. Other specific tasks can be executed via menu on build.xml (see Ant part)
 
 ### Ant
 If you do not have Netbeans, you can build source code also with Apache Ant.
@@ -81,12 +83,11 @@ All notable changes are listed in the file [CHANGELOG.md](CHANGELOG.md)
 ## Deployment
 
 ### Nightly builds
-When a commit is pushed/merged into `dev` branch, new prerelease version is created automatically by Travis CI,
-these prerelease versions are called nightly builds. On releasing new nightly build, previous nightly build is removed.
+When a commit is pushed/merged into `dev` branch, a new prerelease version is created automatically by Github actions CI.
+These prerelease versions are called nightly builds. On releasing a new nightly build, the previous nightly build is removed.
 
 ### Stable versions
-New stable version is created automatically by Travis CI when marking a revision in `master` branch with a tag in format `versionxxx`.
-
+A new stable version is created automatically by the Travis CI when marking a revision in `master` branch with a tag in format `versionx.y.z`.
 
 ## Contributing
 
@@ -101,10 +102,9 @@ Nightly builds have additional suffix `_nightlyN` where `N` is number which incr
 and does not depend on the `x.y.z` numbers. (This means nightly number is *NOT* reseted to 0 when releasing stable)
 Older nightly builds are *NOT* available through git tags.
 
-
 ## Authors
 The decompiler was originally written by **Jindra Petřík** also known as **JPEXS**.
-The application was made in Czech republic.
+The application was made in Czech Republic.
 
 ### Developers
 * **JPEXS** - leader, development of the decompiler, website main admin, github account admin, organization
@@ -121,20 +121,19 @@ The application was made in Czech republic.
 * **kalip** - italian translation
 * **Krock** - german translation
 * **Laurent LOUVET** - french translation
-* **MaGiC** - portugese translation
+* **MaGiC** - portuguese translation
 * **martinkoza** - polish translation
 * **Osman ÖZ** - turkish translation
 * **pepka** - ukrainian and dutch translation
 * **poxyran** - spanish translation
-* **realmaster42** - portugese-brasil translation
+* **realmaster42** - portuguese-brasil translation
 * **Rtsjx** - chinese translation
 * **koiru** - japanese translation
 
 ## Contact
-You can use our Issue tracker to report bugs, but our support is VERY limited.
-[https://www.free-decompiler.com/flash/issues](https://www.free-decompiler.com/flash/issues)
+If you want to report a problem or request new feature, use our issue tracker at [https://www.free-decompiler.com/flash/issues](https://www.free-decompiler.com/flash/issues)
 
-See [Frequently Asked Questions (FAQ) in wiki](https://github.com/jindrapetrik/jpexs-decompiler/wiki/FAQ) before you try to contact me.
+You should see [Frequently Asked Questions (FAQ) in wiki](https://github.com/jindrapetrik/jpexs-decompiler/wiki/FAQ) before.
 
 ### Email contact
 Emergency contact to JPEXS developer is `jindra.petrik@gmail.com`.
@@ -143,7 +142,7 @@ But we prefer Issue tracker contact.
 ## Licenses + Acknowledgments
 ### Application
 
-FFDec Application is licensed with GNU GPL v3, see the [license.txt](license.txt).
+FFDec Application is licensed under the GNU GPL v3 (GPL-3.0-or-later) licence, see the [license.txt](license.txt).
 It uses modified code of these libraries:
 
 * [JSyntaxPane] (Code editor) - Apache License 2.0
@@ -157,26 +156,10 @@ And links also these libraries:
 * [flashdebugger library] (Debugging ActionScript) - LGPLv3
 * FFDec Library (LGPLv3) - see below
 
-Application uses also some icons of the [Silk icons pack], [Silk companion 1] and [FatCow icons pack].
-### Library
+Application uses also some icons of the [Silk icons pack], [Silk companion 1], [FatCow icons pack] and [Aha-Soft icons pack].
 
-FFDec Library is licensed with GNU LGPL v3, see [license.txt](libsrc/ffdec_lib/license.txt) for details.
-It uses modified code of these libraries:
-
-* [sfntly] (WOFF font export) - Apache License 2.0
-* [JLayer] (Decoding MP3) - LGPL
-* UAB "DKD" NellyMoser ASAO codec (Decoding Nelly Moser sound format) - LGPL
-* [Animated GIF Writer] (Frames to GIF export) - Creative Commons Attribution 3.0 Unported
-* [Animated GIF Encoder] (Frames to GIF export)
-
-And links also these libraries:
-
-* [LZMA SDK] (SWF de/compress) - public domain
-* [Monte Media Library] (Frames to AVI export) - LGPL
-* [Fontastic] (Font TTF export) - LGPL
-* [DoubleType] (Font TTF export) - GPLv2
-* [jPacker] (Canvas scripts compression) - MIT License
-* [gnujpdf] (PDF export) - LGPL License
+## Library
+See [library README](libsrc/ffdec_lib/README.md) for more info about FFDec library.
 
 [GIT]: http://git-scm.com/downloads
 [Netbeans IDE]: http://www.netbeans.org/
@@ -184,7 +167,7 @@ And links also these libraries:
 [launch4j]: http://launch4j.sourceforge.net/
 [NSIS]: http://nsis.sourceforge.net/
 [JSyntaxPane]: https://code.google.com/p/jsyntaxpane/
-[Muffin]: http://muffin.doit.org/
+[Muffin]: https://web.archive.org/web/20171025082558/http://muffin.doit.org/ (original: http://muffin.doit.org/)
 [Java Native Access - JNA]: https://github.com/twall/jna
 [Insubstantial]: http://shemnon.com/speling/2011/04/insubstantial-62-release.html
 [javactivex]:https://github.com/jindrapetrik/javactivex
@@ -192,13 +175,4 @@ And links also these libraries:
 [Silk icons pack]: http://www.famfamfam.com/lab/icons/silk/
 [Silk companion 1]: http://damieng.com/creative/icons/silk-companion-1-icons
 [FatCow icons pack]: http://www.fatcow.com/free-icons
-[sfntly]: https://code.google.com/p/sfntly/
-[JLayer]: http://www.javazoom.net/javalayer/javalayer.html
-[Animated GIF Writer]: http://elliot.kroo.net/software/java/GifSequenceWriter/
-[Animated GIF Encoder]: http://www.fmsware.com/stuff/gif.html
-[LZMA SDK]: http://www.7-zip.org/sdk.html
-[Monte Media Library]: http://www.randelshofer.ch/monte/
-[Fontastic]: http://code.andreaskoller.com/libraries/fontastic/
-[DoubleType]: http://sourceforge.net/projects/doubletype/
-[jPacker]: https://code.google.com/p/jpacker/
-[gnujpdf]: http://gnujpdf.sourceforge.net/
+[Aha-Soft icons pack]: http://www.aha-soft.com

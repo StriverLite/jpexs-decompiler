@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2023 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -16,12 +16,16 @@
  */
 package com.jpexs.decompiler.flash.abc.avm2.model.clauses;
 
+import com.jpexs.decompiler.flash.IdentifiersDeobfuscation;
+import com.jpexs.decompiler.flash.abc.avm2.instructions.SetTypeIns;
 import com.jpexs.decompiler.flash.abc.avm2.model.AVM2Item;
 import com.jpexs.decompiler.flash.abc.avm2.model.CoerceAVM2Item;
 import com.jpexs.decompiler.flash.abc.avm2.model.ConvertAVM2Item;
+import com.jpexs.decompiler.flash.abc.avm2.model.FullMultinameAVM2Item;
 import com.jpexs.decompiler.flash.abc.avm2.model.GetSlotAVM2Item;
 import com.jpexs.decompiler.flash.abc.avm2.model.LocalRegAVM2Item;
 import com.jpexs.decompiler.flash.abc.avm2.model.SetLocalAVM2Item;
+import com.jpexs.decompiler.flash.abc.avm2.model.SetPropertyAVM2Item;
 import com.jpexs.decompiler.flash.abc.avm2.model.SetSlotAVM2Item;
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
 import com.jpexs.decompiler.flash.helpers.hilight.HighlightData;
@@ -40,6 +44,8 @@ public class DeclarationAVM2Item extends AVM2Item {
     public GraphTargetItem assignment;
 
     public GraphTargetItem type;
+    
+    public boolean typeIsNull = false;
 
     public boolean showValue = true;
 
@@ -57,8 +63,8 @@ public class DeclarationAVM2Item extends AVM2Item {
 
     public DeclarationAVM2Item(GraphTargetItem assignment) {
         this(assignment, null);
-    }
-
+    }   
+    
     @Override
     public GraphTextWriter appendTo(GraphTextWriter writer, LocalData localData) throws InterruptedException {
 
@@ -95,25 +101,14 @@ public class DeclarationAVM2Item extends AVM2Item {
             srcData.regIndex = lti.regIndex;
 
             GraphTargetItem val = lti.value;
-            GraphTargetItem coerType = TypeItem.UNBOUNDED;
-            if (lti.value instanceof CoerceAVM2Item) {
-                coerType = ((CoerceAVM2Item) lti.value).typeObj;
-            }
-            if (lti.value instanceof ConvertAVM2Item) {
-                coerType = ((ConvertAVM2Item) lti.value).type;
-            }
-            //strip coerce if its declared as this type
-            if (coerType.equals(type) && !coerType.equals(TypeItem.UNBOUNDED)) {
-                val = val.value;
-            }
-            srcData.declaredType = (coerType instanceof TypeItem) ? ((TypeItem) coerType).fullTypeName : DottedChain.ALL;
+            srcData.declaredType = (type instanceof TypeItem) ? ((TypeItem) type).fullTypeName : DottedChain.ALL;
             writer.append("var ");
             writer.append(localName);
             writer.append(":");
             type.appendTry(writer, localData);
             if (showValue) {
                 writer.append(" = ");
-                val.toString(writer, localData);
+                SetTypeIns.handleNumberToInt(val, type).toString(writer, localData);
             }
             return writer;
         }
@@ -123,19 +118,7 @@ public class DeclarationAVM2Item extends AVM2Item {
             srcData.localName = ssti.getNameAsStr(localData);
             srcData.declaration = true;
 
-            GraphTargetItem val = ssti.value;
-            GraphTargetItem coerType = TypeItem.UNBOUNDED;
-            if (ssti.value instanceof CoerceAVM2Item) {
-                coerType = ((CoerceAVM2Item) ssti.value).typeObj;
-            }
-            if (ssti.value instanceof ConvertAVM2Item) {
-                coerType = ((ConvertAVM2Item) ssti.value).type;
-            }
-            //strip coerce if its declared as this type
-            if (coerType.equals(type) && !coerType.equals(TypeItem.UNBOUNDED)) {
-                val = val.value;
-            }
-
+            GraphTargetItem val = ssti.value;                        
             srcData.declaredType = (type instanceof TypeItem) ? ((TypeItem) type).fullTypeName : DottedChain.ALL;
             writer.append("var ");
             ssti.getName(writer, localData);
@@ -144,12 +127,37 @@ public class DeclarationAVM2Item extends AVM2Item {
             type.appendTry(writer, localData);
             if (showValue) {
                 writer.append(" = ");
-                val.toString(writer, localData);
+                SetTypeIns.handleNumberToInt(val, type).toString(writer, localData);
             }
             return writer;
         }
+
+        if (assignment instanceof SetPropertyAVM2Item) {
+            SetPropertyAVM2Item spti = (SetPropertyAVM2Item) assignment;
+            HighlightData srcData = getSrcData();
+            srcData.localName = ((FullMultinameAVM2Item) spti.propertyName).resolvedMultinameName;
+            srcData.declaration = true;
+
+            GraphTargetItem val = spti.value;      
+            srcData.declaredType = (type instanceof TypeItem) ? ((TypeItem) type).fullTypeName : DottedChain.ALL;
+            writer.append("var ");
+            writer.append(IdentifiersDeobfuscation.printIdentifier(true, ((FullMultinameAVM2Item) spti.propertyName).resolvedMultinameName));
+            writer.append(":");
+
+            type.appendTry(writer, localData);
+            if (showValue) {
+                writer.append(" = ");
+                SetTypeIns.handleNumberToInt(val, type).toString(writer, localData);
+            }
+            return writer;
+        }
+
         writer.append("var ");
-        return assignment.toString(writer, localData);
+        assignment.toString(writer, localData);
+        writer.append(":");
+
+        type.appendTry(writer, localData);
+        return writer;
     }
 
     @Override

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2021 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2023 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -17,6 +17,7 @@
 package com.jpexs.decompiler.flash.action.model.operations;
 
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
+import com.jpexs.decompiler.flash.action.model.CompoundableBinaryOpAs12;
 import com.jpexs.decompiler.flash.action.model.DirectValueActionItem;
 import com.jpexs.decompiler.flash.action.swf4.ActionSubtract;
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
@@ -35,7 +36,7 @@ import java.util.List;
  *
  * @author JPEXS
  */
-public class SubtractActionItem extends BinaryOpItem implements CompoundableBinaryOp {
+public class SubtractActionItem extends BinaryOpItem implements CompoundableBinaryOpAs12 {
 
     public SubtractActionItem(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem leftSide, GraphTargetItem rightSide) {
         super(instruction, lineStartIns, PRECEDENCE_ADDITIVE, leftSide, rightSide, "-", "Number", "Number");
@@ -55,10 +56,19 @@ public class SubtractActionItem extends BinaryOpItem implements CompoundableBina
         if ((leftSide instanceof DirectValueActionItem)
                 && (((((DirectValueActionItem) leftSide).value instanceof Float) && (((Float) ((DirectValueActionItem) leftSide).value) == 0f))
                 || ((((DirectValueActionItem) leftSide).value instanceof Double) && (((Double) ((DirectValueActionItem) leftSide).value) == 0.0))
-                || ((((DirectValueActionItem) leftSide).value instanceof Long) && (((Long) ((DirectValueActionItem) leftSide).value) == 0L)))) {
+                || ((((DirectValueActionItem) leftSide).value instanceof Long) && (((Long) ((DirectValueActionItem) leftSide).value) == 0L))
+                || ((DirectValueActionItem) leftSide).isString() && "0".equals(((DirectValueActionItem) leftSide).toString()))) {
             writer.append(operator);
             writer.append(" ");
-            rightSide.appendTry(writer, localData);
+
+            int rightPrecedence = rightSide.getPrecedence();
+            if (rightPrecedence >= precedence && rightPrecedence != GraphTargetItem.NOPRECEDENCE) {
+                writer.append("(");
+                rightSide.toString(writer, localData, coerceRight);
+                writer.append(")");
+            } else {
+                rightSide.toString(writer, localData, coerceRight);
+            }
             return writer;
         } else if (rightSide.getPrecedence() >= precedence) { // >=  add or subtract too
 

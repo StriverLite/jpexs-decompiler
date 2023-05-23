@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2016-2021 JPEXS
+ *  Copyright (C) 2016-2023 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -19,11 +19,13 @@ package com.jpexs.decompiler.flash.gui;
 import java.awt.Color;
 import javax.swing.JEditorPane;
 import javax.swing.JLabel;
+import javax.swing.UIManager;
 import javax.swing.event.HyperlinkEvent;
+import javax.swing.text.html.HTMLDocument;
 
 public class HtmlLabel extends JEditorPane {
 
-    private JLabel label = new JLabel();
+    private final JLabel label = new JLabel();
     private String rawText;
 
     public HtmlLabel() {
@@ -53,11 +55,23 @@ public class HtmlLabel extends JEditorPane {
         }
         this.rawText = t;
         super.setText(modText);
+
+        Color bgColor = UIManager.getColor("Panel.background");
+        int light = (bgColor.getRed() + bgColor.getGreen() + bgColor.getBlue()) / 3;
+        boolean nightMode = light <= 128;
+
+        Color linkColor = Color.blue;
+        if (nightMode) {
+            linkColor = new Color(0x88, 0x88, 0xff);
+        }
+        
+        String aRule = "a {color: " + String.format("#%02x%02x%02x", linkColor.getRed(), linkColor.getGreen(), linkColor.getBlue()) + "}";
+
+        ((HTMLDocument) getDocument()).getStyleSheet().addRule(aRule);
     }
 
     @Override
     public String getText() {
         return rawText;
     }
-
 }
